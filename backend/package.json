@@ -1,0 +1,49 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Image processing backend with fal.ai integration",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.7.2",
+    "@fal-ai/client": "^1.0.0",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.7.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.8",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.54.0",
+    "jest": "^29.7.0",
+    "tsx": "^4.6.0",
+    "typescript": "^5.3.2"
+  },
+  "keywords": [
+    "image",
+    "processing",
+    "fal.ai",
+    "express",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT"
+}
