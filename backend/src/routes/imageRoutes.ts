@@ -63,7 +63,26 @@ router.post('/upload-multiple',
   })
 );
 
-// Process image with fal.ai
+// List processed images (spesifik route'lar önce gelmeli)
+router.get('/processed',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { page = 1, limit = 20, aiModel, minProcessingTime, maxProcessingTime } = req.query;
+    const processedImages = await imageService.listProcessedImages({
+      page: Number(page),
+      limit: Number(limit),
+      aiModel: aiModel as string,
+      minProcessingTime: minProcessingTime ? Number(minProcessingTime) : undefined,
+      maxProcessingTime: maxProcessingTime ? Number(maxProcessingTime) : undefined
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: processedImages
+    });
+  })
+);
+
+// Process image with fal.ai (spesifik route, :imageId'den önce gelmeli)
 router.post('/process/:imageId',
   asyncHandler(async (req: Request, res: Response) => {
     const { imageId } = req.params;
@@ -83,7 +102,7 @@ router.post('/process/:imageId',
   })
 );
 
-// Get image by ID
+// Get image by ID (genel route, en sonda)
 router.get('/:imageId',
   asyncHandler(async (req: Request, res: Response) => {
     const { imageId } = req.params;
@@ -100,26 +119,7 @@ router.get('/:imageId',
   })
 );
 
-// List processed images
-router.get('/processed',
-  asyncHandler(async (req: Request, res: Response) => {
-    const { page = 1, limit = 20, aiModel, minProcessingTime, maxProcessingTime } = req.query;
-    const processedImages = await imageService.listProcessedImages({
-      page: Number(page),
-      limit: Number(limit),
-      aiModel: aiModel as string,
-      minProcessingTime: minProcessingTime ? Number(minProcessingTime) : undefined,
-      maxProcessingTime: maxProcessingTime ? Number(maxProcessingTime) : undefined
-    });
-    
-    res.status(200).json({
-      success: true,
-      data: processedImages
-    });
-  })
-);
-
-// List user images
+// List user images (genel route, en sonda)
 router.get('/',
   asyncHandler(async (req: Request, res: Response) => {
     const { page = 1, limit = 10, filter } = req.query;

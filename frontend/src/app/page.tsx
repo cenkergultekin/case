@@ -28,6 +28,7 @@ export default function Home() {
   const [showUpload, setShowUpload] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('upload');
+  const [uploadModalScrollPosition, setUploadModalScrollPosition] = useState<number>(0);
 
   useEffect(() => {
     loadImages();
@@ -52,20 +53,27 @@ export default function Home() {
   };
 
   const handleProcessComplete = (processedVersion: any) => {
-    if (selectedImage) {
+    // Functional state update to avoid closure issues with rapid sequential updates
+    setSelectedImage(prev => {
+      if (!prev) return prev;
+      
       const updatedImage = {
-        ...selectedImage,
-        processedVersions: [...(selectedImage.processedVersions || []), processedVersion]
+        ...prev,  // ✅ Use latest state, not closure state
+        processedVersions: [...(prev.processedVersions || []), processedVersion]
       };
-      setSelectedImage(updatedImage);
-      setImages(prev => prev.map(img => 
-        img.id === selectedImage.id ? updatedImage : img
+      
+      // Also update images array with the latest version
+      setImages(images => images.map(img => 
+        img.id === prev.id ? updatedImage : img
       ));
-      // Clear the selected source version after processing
-      setSelectedSourceVersionId(null);
-      // Switch to pipeline view after processing
-      setViewMode('pipeline');
-    }
+      
+      return updatedImage;
+    });
+    
+    // Clear the selected source version after processing
+    setSelectedSourceVersionId(null);
+    // Switch to pipeline view after processing
+    setViewMode('pipeline');
   };
 
   const handleSelectAsSource = (versionId: string) => {
@@ -74,31 +82,58 @@ export default function Home() {
   };
 
   const handleImageDelete = (imageId: string) => {
-    setImages(prev => prev.filter(img => img.id !== imageId));
+    const remainingImages = images.filter(img => img.id !== imageId);
+    setImages(remainingImages);
+    
     if (selectedImage?.id === imageId) {
-      setSelectedImage(null);
-      setShowUpload(true);
+      // Silinen görsel seçili görseldi
+      if (remainingImages.length > 0) {
+        // Başka görsel varsa ilkini seç ve mevcut viewMode'da kal
+        setSelectedImage(remainingImages[0]);
+        // viewMode'u değiştirme, kaldığı yerde kalsın
+      } else {
+        // Hiç görsel kalmadıysa upload ekranına git
+        setSelectedImage(null);
+        setViewMode('upload');
+      }
     }
   };
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-zinc-50">
+    <div className="min-h-screen bg-gradient-subtle">
       {/* Header */}
-      <header className="bg-transparent border-b border-gray-200/50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">ImageFlow v1</h1>
+      <header className="glass-strong border-b border-white/20 shadow-card">
+        <div className="max-w-7xl mx-auto px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="px-5 py-2.5 bg-white rounded-xl shadow-card border border-gray-200/50">
+                <h1 className="text-2xl font-bold text-gradient-purple">ImageFlow</h1>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 font-medium">AI Destekli Görsel İşleme</p>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 lg:py-12">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {/* Action Buttons */}
-        <div className="mb-6 md:mb-8 lg:mb-12 flex items-center justify-end">
+        <div className="mb-6 md:mb-8 flex items-center justify-end">
           {selectedImage && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <Button
-                onClick={() => setShowUpload(true)}
-                className="bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 text-white shadow-lg"
+                onClick={() => {
+                  setUploadModalScrollPosition(window.scrollY);
+                  setShowUpload(true);
+                  // Modal açıldığında görünür hale getir
+                  setTimeout(() => {
+                    const modalElement = document.querySelector('[data-modal="upload"]');
+                    if (modalElement) {
+                      modalElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }, 100);
+                }}
+                className="shadow-card w-full sm:w-auto"
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Yeni Görsel Yükle
@@ -106,7 +141,7 @@ export default function Home() {
               <Button
                 onClick={() => setShowLibrary(!showLibrary)}
                 variant="outline"
-                className="bg-white/60 backdrop-blur-sm border-white/20 shadow-lg flex items-center gap-2"
+                className="flex items-center justify-center gap-2 w-full sm:w-auto"
               >
                 <ImageIcon className="h-4 w-4" />
                 <span>Kütüphane</span>
@@ -128,29 +163,30 @@ export default function Home() {
           </div>
         ) : viewMode === 'processing' && selectedImage ? (
           /* AI Processing - Model seçimi ve açı seçimi */
-          <div className="relative flex gap-6">
+          <div className="relative flex flex-col lg:flex-row gap-4 lg:gap-6">
             {/* Library Sidebar - Açılıp Kapanabilir */}
             <div className={cn(
-              "transition-all duration-300 ease-in-out",
-              showLibrary ? "w-80 opacity-100" : "w-0 opacity-0 overflow-hidden"
+              "transition-smooth-200",
+              showLibrary ? "w-full lg:w-80 opacity-100" : "w-0 opacity-0 overflow-hidden"
             )}>
-              <div className="bg-white/60 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
-                        <ImageIcon className="h-6 w-6 text-white" />
+              <div className="glass rounded-2xl shadow-card-hover border border-white/20 overflow-hidden">
+                <div className="bg-gradient-primary p-6 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-white/5"></div>
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 glass-dark rounded-xl flex items-center justify-center shadow-button">
+                        <ImageIcon className="h-5 w-5 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-2xl font-bold text-white">Your Library</h2>
-                        <p className="text-white/80">{images.length} images available</p>
+                        <h2 className="text-lg font-bold text-white">Kütüphaneniz</h2>
+                        <p className="text-white/90 text-sm font-medium">{images.length} görsel</p>
                       </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="p-6 max-h-[calc(100vh-300px)] overflow-y-auto">
-                  <div className="space-y-4">
+                <div className="p-4 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
+                  <div className="space-y-3">
                     {images.map((img) => {
                       const imageUrl = getImageUrl(img.filename);
                       const isSelected = selectedImage?.id === img.id;
@@ -159,10 +195,10 @@ export default function Home() {
                         <div
                           key={img.id}
                           className={cn(
-                            "group relative aspect-[4/3] rounded-2xl overflow-hidden cursor-pointer transition-all duration-300",
+                            "group relative aspect-[4/3] rounded-xl overflow-hidden cursor-pointer transition-smooth border",
                             isSelected
-                              ? 'ring-4 ring-blue-500 shadow-xl scale-[1.02]'
-                              : 'hover:shadow-lg hover:scale-[1.02] border-2 border-transparent hover:border-blue-300'
+                              ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-card-hover scale-[1.02]'
+                              : 'glass-subtle border-white/30 hover:glass hover:border-white/50 hover:shadow-card hover:scale-[1.01]'
                           )}
                           onClick={() => {
                             setSelectedImage(img);
@@ -186,12 +222,12 @@ export default function Home() {
                             
                             {/* Selection Overlay */}
                             <div className={cn(
-                              "absolute inset-0 transition-colors duration-300 flex items-center justify-center",
-                              isSelected ? 'bg-blue-500/20' : 'group-hover:bg-black/10'
+                              "absolute inset-0 transition-smooth flex items-center justify-center",
+                              isSelected ? 'bg-primary/10' : 'group-hover:bg-black/5'
                             )}>
                               {isSelected && (
-                                <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                                <div className="glass-strong text-primary px-3 py-1.5 rounded-xl text-xs font-bold shadow-button flex items-center gap-2 border border-primary/20">
+                                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                                   Seçili
                                 </div>
                               )}
@@ -199,16 +235,16 @@ export default function Home() {
                           </div>
                           
                           {/* Info Overlay */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md p-2 border-t border-white/20">
-                            <p className="text-gray-900 text-xs font-bold truncate">
+                          <div className="absolute bottom-0 left-0 right-0 glass-strong p-2.5 border-t border-white/20">
+                            <p className="text-gray-900 text-xs font-semibold truncate">
                               {img.originalName}
                             </p>
                             <div className="flex items-center justify-between mt-1">
-                              <span className="text-[10px] font-medium text-gray-500">
+                              <span className="text-[10px] text-gray-600">
                                 {(img.size / (1024 * 1024)).toFixed(1)} MB
                               </span>
                               {img.processedVersions && img.processedVersions.length > 0 && (
-                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                <span className="glass-subtle border border-primary/20 text-primary px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-minimal">
                                   {img.processedVersions.length}
                                 </span>
                               )}
@@ -236,29 +272,30 @@ export default function Home() {
           </div>
         ) : viewMode === 'pipeline' && selectedImage ? (
           /* Production Pipeline View */
-          <div className="relative flex gap-6">
+          <div className="relative flex flex-col lg:flex-row gap-4 lg:gap-6">
             {/* Library Sidebar - Pipeline görünümünde de görünür */}
             <div className={cn(
-              "transition-all duration-300 ease-in-out",
-              showLibrary ? "w-80 opacity-100" : "w-0 opacity-0 overflow-hidden"
+              "transition-smooth-200",
+              showLibrary ? "w-full lg:w-80 opacity-100" : "w-0 opacity-0 overflow-hidden"
             )}>
-              <div className="bg-white/60 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
-                        <ImageIcon className="h-6 w-6 text-white" />
+              <div className="glass rounded-2xl shadow-card-hover border border-white/20 overflow-hidden">
+                <div className="bg-gradient-primary p-6 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-white/5"></div>
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 glass-dark rounded-xl flex items-center justify-center shadow-button">
+                        <ImageIcon className="h-5 w-5 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-2xl font-bold text-white">Your Library</h2>
-                        <p className="text-white/80">{images.length} images available</p>
+                        <h2 className="text-lg font-bold text-white">Kütüphaneniz</h2>
+                        <p className="text-white/90 text-sm font-medium">{images.length} görsel</p>
                       </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="p-6 max-h-[calc(100vh-300px)] overflow-y-auto">
-                  <div className="space-y-4">
+                <div className="p-4 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
+                  <div className="space-y-3">
                     {images.map((img) => {
                       const imageUrl = getImageUrl(img.filename);
                       const isSelected = selectedImage?.id === img.id;
@@ -267,10 +304,10 @@ export default function Home() {
                         <div
                           key={img.id}
                           className={cn(
-                            "group relative aspect-[4/3] rounded-2xl overflow-hidden cursor-pointer transition-all duration-300",
+                            "group relative aspect-[4/3] rounded-xl overflow-hidden cursor-pointer transition-smooth border",
                             isSelected
-                              ? 'ring-4 ring-blue-500 shadow-xl scale-[1.02]'
-                              : 'hover:shadow-lg hover:scale-[1.02] border-2 border-transparent hover:border-blue-300'
+                              ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-card-hover scale-[1.02]'
+                              : 'glass-subtle border-white/30 hover:glass hover:border-white/50 hover:shadow-card hover:scale-[1.01]'
                           )}
                           onClick={() => {
                             setSelectedImage(img);
@@ -295,12 +332,12 @@ export default function Home() {
                             
                             {/* Selection Overlay */}
                             <div className={cn(
-                              "absolute inset-0 transition-colors duration-300 flex items-center justify-center",
-                              isSelected ? 'bg-blue-500/20' : 'group-hover:bg-black/10'
+                              "absolute inset-0 transition-smooth flex items-center justify-center",
+                              isSelected ? 'bg-primary/10' : 'group-hover:bg-black/5'
                             )}>
                               {isSelected && (
-                                <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                                <div className="glass-strong text-primary px-3 py-1.5 rounded-xl text-xs font-bold shadow-button flex items-center gap-2 border border-primary/20">
+                                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                                   Seçili
                                 </div>
                               )}
@@ -308,16 +345,16 @@ export default function Home() {
                           </div>
                           
                           {/* Info Overlay */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md p-2 border-t border-white/20">
-                            <p className="text-gray-900 text-xs font-bold truncate">
+                          <div className="absolute bottom-0 left-0 right-0 glass-strong p-2.5 border-t border-white/20">
+                            <p className="text-gray-900 text-xs font-semibold truncate">
                               {img.originalName}
                             </p>
                             <div className="flex items-center justify-between mt-1">
-                              <span className="text-[10px] font-medium text-gray-500">
+                              <span className="text-[10px] text-gray-600">
                                 {(img.size / (1024 * 1024)).toFixed(1)} MB
                               </span>
                               {img.processedVersions && img.processedVersions.length > 0 && (
-                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                <span className="glass-subtle border border-primary/20 text-primary px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-minimal">
                                   {img.processedVersions.length}
                                 </span>
                               )}
@@ -332,7 +369,7 @@ export default function Home() {
             </div>
 
             {/* Production Pipeline - Merkeze/Sağa */}
-            <div className="flex-1">
+            <div className="flex-1 min-w-0 w-full">
               <ProductionPipeline
                 key={selectedImage.id}
                 image={selectedImage}
@@ -345,20 +382,36 @@ export default function Home() {
 
         {/* Upload Modal/Overlay */}
         {showUpload && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
-              <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between z-10">
+          <div 
+            className="fixed inset-0 glass-dark z-[100] animate-fade-in"
+            data-modal="upload"
+          >
+            <div 
+              className="glass-strong rounded-2xl shadow-modal max-w-4xl w-[90%] md:w-full max-h-[90vh] overflow-y-auto border border-white/20"
+              style={{
+                position: 'fixed',
+                top: '50vh',
+                left: '50%',
+                transform: 'translate(-50%, -50%)'
+              }}
+            >
+              <div className="sticky top-0 glass-strong border-b border-white/20 p-5 flex items-center justify-between z-10">
                 <h3 className="text-xl font-bold text-gray-900">Görsel Yükle</h3>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => {
                     setShowUpload(false);
-                    if (images.length === 0) {
+                    // Modal kapatıldığında viewMode'u upload yap
+                    if (!selectedImage || images.length === 0) {
                       setSelectedImage(null);
+                      setViewMode('upload');
+                    } else {
+                      // Eğer görsel varsa processing moduna dön
+                      setViewMode('processing');
                     }
                   }}
-                  className="rounded-full hover:bg-gray-100"
+                  className="rounded-lg"
                 >
                   <X className="h-5 w-5" />
                 </Button>

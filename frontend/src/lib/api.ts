@@ -86,8 +86,9 @@ export const imageAPI = {
 
   // Process image with fal.ai
   processImage: async (imageId: string, operation: string, parameters?: Record<string, any>, sourceProcessedVersionId?: string) => {
-    // Upscale operations take longer, use extended timeout
-    const timeout = operation === 'topaz-upscale' ? 180000 : 60000; // 3 minutes for upscale, 1 minute for others
+    // Extended timeouts for retry mechanism and slow API responses
+    // Backend has retry mechanism (3 attempts) + API processing time
+    const timeout = operation === 'topaz-upscale' ? 300000 : 240000; // 5 minutes for upscale, 4 minutes for others
     const response = await api.post(`/images/process/${imageId}`, {
       operation,
       parameters: parameters || {},

@@ -32,16 +32,22 @@ export class FileStorageService {
     try {
       await this.ensureUploadDir();
       
-      const fileExtension = this.getFileExtension(originalFilename, mimetype);
-      const uniqueFilename = `${randomUUID()}${fileExtension}`;
-      const filePath = join(this.uploadDir, uniqueFilename);
+      // Use the provided filename directly (it should already be unique from ImageService)
+      // If it doesn't have an extension, add one based on mimetype
+      let finalFilename = originalFilename;
+      if (!originalFilename.includes('.')) {
+        const fileExtension = this.getFileExtension(originalFilename, mimetype);
+        finalFilename = `${originalFilename}${fileExtension}`;
+      }
+      
+      const filePath = join(this.uploadDir, finalFilename);
 
       await fs.writeFile(filePath, buffer);
 
       const storedFile: StoredFile = {
-        filename: uniqueFilename,
+        filename: finalFilename,
         path: filePath,
-        url: `${this.baseUrl}/api/uploads/${uniqueFilename}`,
+        url: `${this.baseUrl}/api/uploads/${finalFilename}`,
         size: buffer.length
       };
 
@@ -119,5 +125,47 @@ export class FileStorageService {
 
   getFileUrl(filename: string): string {
     return `${this.baseUrl}/api/uploads/${filename}`;
+  }
+
+  /**
+   * List all files in upload directory
+   */
+  async listFiles(): Promise<Array<{ filename: string; size: number; createdAt: Date; mimetype: string }>> {
+    try {
+      await this.ensureUploadDir();
+      const files = await fs.readdir(this.uploadDir);
+      
+      const fileList = await Promise.all(
+        files.map(async (filename) => {
+          try {
+            const stats = await this.getFileStats(filename);
+            // Determine mimetype from extension
+            const ext = filename.split('.').pop()?.toLowerCase();
+            const mimetypeMap: Record<string, string> = {
+              'jpg': 'image/jpeg',
+              'jpeg': 'image/jpeg',
+              'png': 'image/png',
+              'webp': 'image/webp',
+              'gif': 'image/gif'
+            };
+            
+            return {
+              filename,
+              size: stats.size,
+              createdAt: stats.createdAt,
+              mimetype: ext ? (mimetypeMap[ext] || 'image/jpeg') : 'image/jpeg'
+            };
+          } catch (error) {
+            return null;
+          }
+        })
+      );
+      
+      // Filter out nulls and return
+      return fileList.filter(f => f !== null) as Array<{ filename: string; size: number; createdAt: Date; mimetype: string }>;
+    } catch (error) {
+      console.error('Failed to list files:', error);
+      return [];
+    }
   }
 }

@@ -11,11 +11,6 @@ import { healthRoutes } from './routes/healthRoutes';
 // Load environment variables from parent directory
 dotenv.config({ path: '../.env' });
 
-// Debug environment loading
-console.log('🔑 Environment check:');
-console.log('- FAL_KEY:', process.env.FAL_KEY ? 'SET' : 'NOT SET');
-console.log('- FAL_SUBSCRIBER_KEY:', process.env.FAL_SUBSCRIBER_KEY ? 'SET' : 'NOT SET');
-
 const app = express();
 const PORT = process.env.BACKEND_PORT || 4000;
 
@@ -77,9 +72,6 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on port ${PORT}`);
-  console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+app.listen(PORT);
 
 export default app;

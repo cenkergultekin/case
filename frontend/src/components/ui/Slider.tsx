@@ -65,18 +65,18 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
     return (
       <div className="w-full">
         {label && (
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-sm font-medium text-gray-900">{label}</label>
+          <div className="flex items-center justify-between mb-4">
+            <label className="text-sm font-medium text-gray-700">{label}</label>
             {showValue && (
               <div className="flex items-center gap-2">
                 <span className={cn(
-                  "text-lg font-bold transition-colors duration-200",
-                  isSnapped ? "text-blue-600" : "text-gray-700"
+                  "text-lg font-semibold transition-smooth",
+                  isSnapped ? "text-primary" : "text-gray-900"
                 )}>
                   {value}°
                 </span>
                 {isSnapped && (
-                  <span className="text-xs text-blue-500 font-medium">✓</span>
+                  <span className="text-xs text-primary font-medium">✓</span>
                 )}
               </div>
             )}
@@ -100,10 +100,10 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
                     >
                       <div
                         className={cn(
-                          "w-2 h-2 rounded-full border-2 transition-all duration-200",
+                          "w-2 h-2 rounded-full border-2 transition-smooth",
                           isActive 
-                            ? "bg-blue-600 border-blue-600 scale-125 shadow-lg shadow-blue-500/50" 
-                            : "bg-white border-gray-400 hover:border-gray-500"
+                            ? "bg-primary border-primary scale-125 shadow-card" 
+                            : "bg-white border-gray-300 hover:border-gray-400"
                         )}
                       />
                     </div>
@@ -130,22 +130,20 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
               "[&::-webkit-slider-thumb]:rounded-full",
               "[&::-webkit-slider-thumb]:bg-white",
               "[&::-webkit-slider-thumb]:border-[3px]",
-              "[&::-webkit-slider-thumb]:border-blue-500",
-              "[&::-webkit-slider-thumb]:shadow-lg",
-              "[&::-webkit-slider-thumb]:shadow-blue-500/30",
+              "[&::-webkit-slider-thumb]:border-primary",
+              "[&::-webkit-slider-thumb]:shadow-card",
               "[&::-webkit-slider-thumb]:cursor-pointer",
               "[&::-webkit-slider-thumb]:transition-all",
               "[&::-webkit-slider-thumb]:duration-200",
               "[&::-webkit-slider-thumb]:hover:scale-125",
-              "[&::-webkit-slider-thumb]:hover:shadow-xl",
-              "[&::-webkit-slider-thumb]:hover:shadow-blue-500/40",
+              "[&::-webkit-slider-thumb]:hover:shadow-lg",
               "[&::-webkit-slider-thumb]:active:scale-110",
               "[&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:h-6",
               "[&::-moz-range-thumb]:rounded-full",
               "[&::-moz-range-thumb]:bg-white",
               "[&::-moz-range-thumb]:border-[3px]",
-              "[&::-moz-range-thumb]:border-blue-500",
-              "[&::-moz-range-thumb]:shadow-lg",
+              "[&::-moz-range-thumb]:border-primary",
+              "[&::-moz-range-thumb]:shadow-card",
               "[&::-moz-range-thumb]:cursor-pointer",
               "[&::-moz-range-thumb]:transition-all",
               "[&::-moz-range-thumb]:duration-200",
@@ -155,7 +153,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
             )}
             style={{
               background: snapPoints.length === 0 
-                ? `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progress}%, #e5e7eb ${progress}%, #e5e7eb 100%)`
+                ? `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${progress}%, #e5e7eb ${progress}%, #e5e7eb 100%)`
                 : 'transparent'
             }}
             {...props}
@@ -164,7 +162,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
           {/* Progress bar overlay */}
           {snapPoints.length > 0 && (
             <div 
-              className="absolute top-1/2 left-0 h-1 bg-blue-500 rounded-full transition-all duration-200 -translate-y-1/2 z-0"
+              className="absolute top-1/2 left-0 h-1 bg-primary rounded-full transition-smooth -translate-y-1/2 z-0"
               style={{ width: `${progress}%` }}
             />
           )}

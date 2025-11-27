@@ -200,7 +200,24 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                 ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' 
                 : 'space-y-4'
               }>
-                {processedImages.map((version) => (
+                {processedImages.map((version) => {
+                  // Extract angle from prompt
+                  const extractAngle = (prompt: string): string | null => {
+                    if (!prompt) return null;
+                    if (prompt.includes('No rotation') || prompt.includes('Same pose as reference')) {
+                      return '0';
+                    }
+                    const angleMatch = prompt.match(/Rotate the model by (\d+)°/i);
+                    if (angleMatch) {
+                      return angleMatch[1];
+                    }
+                    // Fallback: Try to extract any angle number
+                    const fallbackMatch = prompt.match(/(\d+)\s*(?:degree|deg|°)/i);
+                    return fallbackMatch ? fallbackMatch[1] : null;
+                  };
+                  const angle = version.parameters?.prompt ? extractAngle(version.parameters.prompt) : null;
+
+                  return (
                   <div
                     key={version.id}
                     className={`group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-blue-200 hover:-translate-y-1 ${
@@ -219,6 +236,15 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                           e.currentTarget.style.display = 'none';
                         }}
                       />
+                      
+                      {/* Angle Badge - Top Left (only if angle exists) */}
+                      {angle && (
+                        <div className="absolute top-2 left-2">
+                          <span className="px-2 py-1 text-xs font-semibold bg-primary text-white rounded-md shadow-lg">
+                            {angle}°
+                          </span>
+                        </div>
+                      )}
                       
                       {/* Overlay Actions */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
@@ -260,6 +286,7 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                       
                       <h4 className="font-bold text-gray-900 text-sm mb-1 capitalize truncate" title={version.operation.replace(/-/g, ' ')}>
                         {version.operation.replace(/-/g, ' ')}
+                        {angle && <span className="ml-2 text-primary font-semibold">({angle}°)</span>}
                       </h4>
                       
                       <div className="flex items-center justify-between text-xs text-gray-500 mt-3 pt-3 border-t border-gray-50">
@@ -270,7 +297,8 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Pagination */}

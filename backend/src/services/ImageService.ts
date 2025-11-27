@@ -48,6 +48,80 @@ export class ImageService {
   constructor() {
     this.falAIService = new FalAIService();
     this.storageService = new FileStorageService();
+    // Server başlatıldığında mevcut dosyaları yükle
+    this.loadExistingImages();
+  }
+
+  /**
+   * Server restart sonrası mevcut dosyaları imageStore'a yükle
+   */
+  private async loadExistingImages() {
+    try {
+      const files = await this.storageService.listFiles();
+      
+      for (const file of files) {
+        try {
+          // Skip .gitkeep and other non-image files
+          if (file.filename.startsWith('.') || file.filename.endsWith('.glb')) {
+            continue;
+          }
+          
+          let imageId: string;
+          let originalName: string;
+          
+          // Yeni format: {uuid}_{originalName}
+          const firstUnderscore = file.filename.indexOf('_');
+          
+          if (firstUnderscore !== -1) {
+            // Yeni format: underscore var
+            imageId = file.filename.substring(0, firstUnderscore);
+            originalName = file.filename.substring(firstUnderscore + 1);
+          } else {
+            // Eski format: {uuid}.ext (underscore yok)
+            // Extension'ı çıkar ve UUID'yi al
+            const lastDot = file.filename.lastIndexOf('.');
+            if (lastDot === -1) {
+              continue;
+            }
+            
+            imageId = file.filename.substring(0, lastDot);
+            originalName = file.filename; // Full filename as originalName
+          }
+          
+          // UUID validation (basic check)
+          if (imageId.length < 32 || !imageId.includes('-')) {
+            continue;
+          }
+          
+          // Eğer zaten yüklüyse skip et
+          if (this.imageStore.has(imageId)) {
+            continue;
+          }
+          
+          // Metadata oluştur
+          const metadata: ImageMetadata = {
+            id: imageId,
+            originalName: originalName,
+            filename: file.filename,
+            mimetype: file.mimetype || 'image/jpeg',
+            size: file.size,
+            width: 0, // Dimensions unknown after restart
+            height: 0,
+            uploadedAt: new Date(file.createdAt),
+            processedVersions: []
+          };
+          
+          this.imageStore.set(imageId, metadata);
+          
+        } catch (error) {
+          // Silently skip files that can't be loaded
+          continue;
+        }
+      }
+      
+    } catch (error) {
+      // Silently fail - images will be loaded on demand
+    }
   }
 
   async processUpload(file: Express.Multer.File, options: UploadOptions = {}): Promise<ImageMetadata> {
@@ -133,7 +207,6 @@ export class ImageService {
 
       // Extract AI model from operation
       const aiModel = this.extractAIModel(operation);
-      console.log(`🏷️ Extracted AI model: ${aiModel} from operation: ${operation}`);
       
       // Generate smart filename
       const processedId = randomUUID();
@@ -144,14 +217,18 @@ export class ImageService {
         parameters,
         sourceProcessedVersionId ? sourceFilename : undefined
       );
-      console.log(`📝 Generated smart filename: ${smartFilename}`);
-      const processedFilename = `${processedId}_${smartFilename}.jpg`;
-      console.log(`💾 Final processed filename: ${processedFilename}`);
+      
+      // Determine file extension
+      const fileExtension = '.jpg';
+      const processedFilename = `${processedId}_${smartFilename}${fileExtension}`;
+      
+      // Determine MIME type
+      const mimeType = 'image/jpeg';
       
       const storedProcessed = await this.storageService.saveFile(
         processedResult.data,
         processedFilename,
-        'image/jpeg' // Use JPEG for consistency
+        mimeType
       );
 
       const processedVersion: ProcessedVersion = {
