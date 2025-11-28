@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ImageUpload } from '@/components/ImageUpload';
 import { ImageProcessor } from '@/components/ImageProcessor';
 import { ProductionPipeline } from '@/components/ProductionPipeline';
 import { Button } from '@/components/ui/Button';
+import { AuthForm } from '@/components/AuthForm';
 import { imageAPI, getImageUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Image as ImageIcon, Upload, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { getFirebaseAuth } from '@/lib/firebaseClient';
 
 interface ImageData {
   id: string;
@@ -22,24 +25,51 @@ interface ImageData {
 type ViewMode = 'upload' | 'processing' | 'pipeline';
 
 export default function Home() {
+  const auth = useMemo(() => getFirebaseAuth(), []);
+  const [authReady, setAuthReady] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [images, setImages] = useState<ImageData[]>([]);
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
   const [selectedSourceVersionId, setSelectedSourceVersionId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('upload');
-  const [uploadModalScrollPosition, setUploadModalScrollPosition] = useState<number>(0);
+  const [processingImages, setProcessingImages] = useState<Array<{ id: string; startTime: number; angle?: number; sourceId: string }>>([]);
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      setCurrentUser(user);
+      setAuthReady(true);
+    });
+
+    return () => unsubscribe();
+  }, [auth]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setImages([]);
+      setSelectedImage(null);
+      setViewMode('upload');
+      return;
+    }
+
     loadImages();
-  }, []);
+  }, [currentUser]);
 
   const loadImages = async () => {
     try {
+      if (!currentUser) return;
       const response = await imageAPI.listImages();
-      setImages(response.data.images || []);
+      console.log('📚 Load images response:', response);
+      const imagesList = response.data?.images || response.images || [];
+      console.log('📚 Loaded images count:', imagesList.length);
+      setImages(imagesList);
     } catch (error) {
-      console.error('Failed to load images:', error);
+      console.error('❌ Failed to load images:', error);
+      // Show user-friendly error
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+      }
     }
   };
 
@@ -50,6 +80,18 @@ export default function Home() {
       setShowUpload(false);
       setViewMode('processing');
     }
+  };
+
+  const handleProcessingStart = (processingInfo: { angles: number[]; sourceId?: string }) => {
+    // Always use the original image id as sourceId for the main pipeline
+    // This ensures processing placeholders show up in the original image pipeline
+    const newProcessingImages = processingInfo.angles.map((angle, index) => ({
+      id: `processing-${Date.now()}-${index}`,
+      startTime: Date.now(),
+      angle,
+      sourceId: selectedImage?.id || '' // Always use original image id for main pipeline
+    }));
+    setProcessingImages(prev => [...prev, ...newProcessingImages]);
   };
 
   const handleProcessComplete = (processedVersion: any) => {
@@ -67,18 +109,72 @@ export default function Home() {
         img.id === prev.id ? updatedImage : img
       ));
       
+      // Remove completed processing images using functional update to get latest selectedImage
+      setProcessingImages(processingPrev => {
+        const sourceId = processedVersion.sourceImageId || processedVersion.sourceProcessedVersionId || prev.id;
+        
+        // Extract angle from processedVersion to match more accurately
+        const versionAngle = processedVersion.parameters?.angle !== undefined 
+          ? processedVersion.parameters.angle 
+          : null;
+        
+        // Remove one processing image that matches the source and angle (if available)
+        // Also match by original image id since we always use original image id as sourceId
+        const matchingIndex = processingPrev.findIndex(p => {
+          const sourceMatches = p.sourceId === sourceId || p.sourceId === prev.id;
+          const angleMatches = versionAngle === null || p.angle === versionAngle || p.angle === undefined;
+          return sourceMatches && angleMatches;
+        });
+        
+        if (matchingIndex !== -1) {
+          return processingPrev.filter((_, index) => index !== matchingIndex);
+        }
+        return processingPrev;
+      });
+      
       return updatedImage;
     });
     
     // Clear the selected source version after processing
     setSelectedSourceVersionId(null);
-    // Switch to pipeline view after processing
-    setViewMode('pipeline');
+    // Note: Pipeline view is already switched in ImageProcessor's handleConfirmProcess
   };
 
   const handleSelectAsSource = (versionId: string) => {
     setSelectedSourceVersionId(versionId);
     setViewMode('processing');
+  };
+
+  const handleVersionDelete = async (imageId: string, versionId: string) => {
+    try {
+      await imageAPI.deleteProcessedVersion(imageId, versionId);
+      
+      // Wait for animation to complete (300ms) before updating state
+      await new Promise(resolve => setTimeout(resolve, 350));
+      
+      // Update the selected image's processed versions
+      if (selectedImage?.id === imageId) {
+        const updatedVersions = (selectedImage.processedVersions || []).filter(
+          v => v.id !== versionId
+        );
+        setSelectedImage({
+          ...selectedImage,
+          processedVersions: updatedVersions
+        });
+      }
+      
+      // Update images list
+      setImages(prevImages => 
+        prevImages.map(img => 
+          img.id === imageId 
+            ? { ...img, processedVersions: (img.processedVersions || []).filter(v => v.id !== versionId) }
+            : img
+        )
+      );
+    } catch (error) {
+      console.error('Failed to delete version:', error);
+      throw error;
+    }
   };
 
   const handleImageDelete = (imageId: string) => {
@@ -99,6 +195,21 @@ export default function Home() {
     }
   };
 
+  const handleSignOut = async () => {
+    await signOut(auth);
+  };
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-subtle">
+        <p className="text-sm text-gray-600">Oturum bilgileri yükleniyor…</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <AuthForm />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
@@ -111,7 +222,12 @@ export default function Home() {
                 <h1 className="text-2xl font-bold text-gradient-purple">ImageFlow</h1>
               </div>
             </div>
-            <p className="text-sm text-gray-600 font-medium">AI Destekli Görsel İşleme</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-gray-600 font-medium">AI Destekli Görsel İşleme</p>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                Çıkış Yap
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -119,11 +235,21 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {/* Action Buttons */}
         <div className="mb-6 md:mb-8 flex items-center justify-end">
-          {selectedImage && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            {images.length > 0 && (
+              <Button
+                onClick={() => setShowLibrary(!showLibrary)}
+                variant="outline"
+                className="flex items-center justify-center gap-2 w-full sm:w-auto"
+              >
+                <ImageIcon className="h-4 w-4" />
+                <span>Kütüphane ({images.length})</span>
+                {showLibrary ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            )}
+            {selectedImage && (
               <Button
                 onClick={() => {
-                  setUploadModalScrollPosition(window.scrollY);
                   setShowUpload(true);
                   // Modal açıldığında görünür hale getir
                   setTimeout(() => {
@@ -138,28 +264,95 @@ export default function Home() {
                 <Upload className="h-4 w-4 mr-2" />
                 Yeni Görsel Yükle
               </Button>
-              <Button
-                onClick={() => setShowLibrary(!showLibrary)}
-                variant="outline"
-                className="flex items-center justify-center gap-2 w-full sm:w-auto"
-              >
-                <ImageIcon className="h-4 w-4" />
-                <span>Kütüphane</span>
-                {showLibrary ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
 
         {viewMode === 'upload' && !selectedImage ? (
           /* Sadece Upload Bölümü - Görsel seçilmediğinde */
-          <div className="max-w-4xl mx-auto">
-            <ImageUpload
-              onUploadComplete={handleUploadComplete}
-              multiple={true}
-              maxFiles={5}
-            />
+          <div className="relative flex flex-col lg:flex-row gap-4 lg:gap-6">
+            {/* Library Sidebar - Upload ekranında da görünür */}
+            {images.length > 0 && (
+              <div className={cn(
+                "transition-smooth-200",
+                showLibrary ? "w-full lg:w-80 opacity-100" : "w-0 opacity-0 overflow-hidden"
+              )}>
+                <div className="glass rounded-2xl shadow-card-hover border border-white/20 overflow-hidden">
+                  <div className="bg-gradient-primary p-6 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-white/5"></div>
+                    <div className="relative flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 glass-dark rounded-xl flex items-center justify-center shadow-button">
+                          <ImageIcon className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Kütüphaneniz</h2>
+                          <p className="text-white/90 text-sm font-medium">{images.length} görsel</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
+                    <div className="space-y-3">
+                      {images.map((img) => {
+                        const imageUrl = getImageUrl(img.filename);
+                        return (
+                          <div
+                            key={img.id}
+                            className="group relative aspect-[4/3] rounded-xl overflow-hidden cursor-pointer transition-smooth border glass-subtle border-white/30 hover:glass hover:border-white/50 hover:shadow-card hover:scale-[1.01]"
+                            onClick={() => {
+                              setSelectedImage(img);
+                              setViewMode('processing');
+                            }}
+                          >
+                            <div className="w-full h-full bg-gray-100 relative">
+                              <img
+                                src={imageUrl}
+                                alt={img.originalName}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                              <div className="hidden absolute inset-0 flex items-center justify-center bg-gray-50">
+                                <ImageIcon className="h-12 w-12 text-gray-300" />
+                              </div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 glass-strong p-2.5 border-t border-white/20">
+                              <p className="text-gray-900 text-xs font-semibold truncate">
+                                {img.originalName}
+                              </p>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-[10px] text-gray-600">
+                                  {(img.size / (1024 * 1024)).toFixed(1)} MB
+                                </span>
+                                {img.processedVersions && img.processedVersions.length > 0 && (
+                                  <span className="glass-subtle border border-primary/20 text-primary px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-minimal">
+                                    {img.processedVersions.length}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Upload Area */}
+            <div className="flex-1">
+              <ImageUpload
+                onUploadComplete={handleUploadComplete}
+                multiple={true}
+                maxFiles={5}
+              />
+            </div>
           </div>
         ) : viewMode === 'processing' && selectedImage ? (
           /* AI Processing - Model seçimi ve açı seçimi */
@@ -266,6 +459,8 @@ export default function Home() {
                 onProcessComplete={handleProcessComplete}
                 onDelete={handleImageDelete}
                 onViewPipeline={() => setViewMode('pipeline')}
+                onProcessingStart={handleProcessingStart}
+                onSourceVersionChange={(versionId) => setSelectedSourceVersionId(versionId)}
                 {...(selectedSourceVersionId && { initialSelectedSourceVersion: selectedSourceVersionId })}
               />
             </div>
@@ -375,6 +570,11 @@ export default function Home() {
                 image={selectedImage}
                 onSelectAsSource={handleSelectAsSource}
                 onBack={() => setViewMode('processing')}
+                onDeleteVersion={handleVersionDelete}
+                processingImages={processingImages.filter(p => {
+                  // Include processing images that match the current image
+                  return p.sourceId === selectedImage.id;
+                })}
               />
             </div>
           </div>
@@ -383,11 +583,11 @@ export default function Home() {
         {/* Upload Modal/Overlay */}
         {showUpload && (
           <div 
-            className="fixed inset-0 glass-dark z-[100] animate-fade-in"
+            className="fixed inset-0 glass-dark z-[100] animate-modal-backdrop"
             data-modal="upload"
           >
             <div 
-              className="glass-strong rounded-2xl shadow-modal max-w-4xl w-[90%] md:w-full max-h-[90vh] overflow-y-auto border border-white/20"
+              className="glass-strong rounded-2xl shadow-modal max-w-4xl w-[90%] md:w-full max-h-[90vh] overflow-y-auto border border-white/20 animate-modal-content"
               style={{
                 position: 'fixed',
                 top: '50vh',

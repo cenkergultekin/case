@@ -240,12 +240,57 @@
   .animate-gentle-pulse {
     animation: gentle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
+
+  /* New Badge Blink Animation */
+  @keyframes new-badge-blink {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-new-badge {
+    animation: new-badge-blink 1.5s ease-in-out infinite;
+  }
   
   /* Fade In Animation */
+  @keyframes fadeInBlur {
+    from {
+      filter: blur(8px);
+      opacity: 0.5;
+    }
+    to {
+      filter: blur(0);
+      opacity: 1;
+    }
+  }
+
   @keyframes fade-in {
     from {
       opacity: 0;
-      transform: translate(-50%, -48%) scale(0.95);
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes modal-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes modal-content-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -48%) scale(0.96);
     }
     to {
       opacity: 1;
@@ -254,7 +299,39 @@
   }
   
   .animate-fade-in {
-    animation: fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: fade-in 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-modal-backdrop {
+    animation: modal-backdrop-in 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-modal-content {
+    animation: modal-content-in 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-fadeInBlur {
+    animation: fadeInBlur 1s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes modalSlideIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
   
   /* Modal Positioning - Top Center */

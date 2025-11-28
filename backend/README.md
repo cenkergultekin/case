@@ -6,6 +6,7 @@ Node.js + Express backend service for image processing with fal.ai integration.
 
 - **Image Upload**: Single and multiple file upload with validation
 - **File Storage**: Local file system storage with organized structure
+- **Pipeline Persistence**: Firebase Firestore stores image metadata, processed versions, and hierarchy per authenticated user
 - **AI Processing**: Integration with fal.ai for various image operations:
   - Image enhancement
   - Background removal
@@ -31,13 +32,14 @@ Node.js + Express backend service for image processing with fal.ai integration.
 ### Health Check
 - `GET /api/health` - Service health status
 
-### Image Operations
+### Image Operations (Requires Firebase Auth token)
 - `POST /api/images/upload` - Upload single image
 - `POST /api/images/upload-multiple` - Upload multiple images
 - `POST /api/images/process/:imageId` - Process image with AI
 - `GET /api/images/:imageId` - Get image metadata
 - `GET /api/images` - List images with pagination
 - `DELETE /api/images/:imageId` - Delete image
+- `GET /api/images/processed` - List processed versions with filters
 
 ### Static Files
 - `GET /uploads/:filename` - Serve uploaded files
@@ -55,6 +57,12 @@ Node.js + Express backend service for image processing with fal.ai integration.
    FAL_SUBSCRIBER_KEY=your_fal_ai_key
    BACKEND_PORT=4000
    NODE_ENV=development
+   FRONTEND_URL=http://localhost:3000
+
+   # Firebase Admin (Service Account)
+   FIREBASE_PROJECT_ID=your_project_id
+   FIREBASE_CLIENT_EMAIL=firebase-adminsdk@your_project_id.iam.gserviceaccount.com
+   FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
    ```
 
 3. **Development**:
@@ -118,6 +126,7 @@ The service supports the following environment variables:
 - `BASE_URL` - Base URL for file serving
 - `UPLOAD_DIR` - Upload directory path
 - `MAX_FILE_SIZE` - Maximum file size in bytes
+- `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` - Firebase Admin credentials used for Auth + Firestore
 
 ## Error Handling
 

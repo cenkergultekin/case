@@ -1,138 +1,37 @@
 import { randomUUID } from 'crypto';
 import { FalAIService } from './FalAIService';
 import { FileStorageService } from './FileStorageService';
+import { FirebasePipelineRepository } from './FirebasePipelineRepository';
+import { PromptService } from './PromptService';
 import { createError } from '../middleware/errorHandler';
-
-export interface ImageMetadata {
-  id: string;
-  originalName: string;
-  filename: string;
-  mimetype: string;
-  size: number;
-  width?: number;
-  height?: number;
-  uploadedAt: Date;
-  processedVersions?: ProcessedVersion[];
-}
-
-export interface ProcessedVersion {
-  id: string;
-  operation: string;
-  aiModel: string; // e.g., 'flux', 'seedream', 'nano-banana'
-  parameters: Record<string, any>;
-  filename: string;
-  url: string;
-  createdAt: Date;
-  processingTimeMs: number;
-  sourceImageId?: string; // For tracking which image was used as source
-  sourceProcessedVersionId?: string; // For tracking which processed version was used as source
-}
-
-export interface UploadOptions {
-  tags?: string[];
-  description?: string;
-  isPublic?: boolean;
-}
-
-export interface ListOptions {
-  page: number;
-  limit: number;
-  filter?: string;
-}
+import {
+  ImageMetadata,
+  ImagePipelineRecord,
+  ListOptions,
+  ProcessedImagesListOptions,
+  ProcessedVersion,
+  UploadOptions
+} from '../types/image';
 
 export class ImageService {
   private falAIService: FalAIService;
   private storageService: FileStorageService;
-  private imageStore: Map<string, ImageMetadata> = new Map();
+  private pipelineRepository: FirebasePipelineRepository;
+  private promptService: PromptService;
 
   constructor() {
     this.falAIService = new FalAIService();
     this.storageService = new FileStorageService();
-    // Server başlatıldığında mevcut dosyaları yükle
-    this.loadExistingImages();
+    this.pipelineRepository = new FirebasePipelineRepository();
+    this.promptService = new PromptService();
   }
 
-  /**
-   * Server restart sonrası mevcut dosyaları imageStore'a yükle
-   */
-  private async loadExistingImages() {
-    try {
-      const files = await this.storageService.listFiles();
-      
-      for (const file of files) {
-        try {
-          // Skip .gitkeep and other non-image files
-          if (file.filename.startsWith('.') || file.filename.endsWith('.glb')) {
-            continue;
-          }
-          
-          let imageId: string;
-          let originalName: string;
-          
-          // Yeni format: {uuid}_{originalName}
-          const firstUnderscore = file.filename.indexOf('_');
-          
-          if (firstUnderscore !== -1) {
-            // Yeni format: underscore var
-            imageId = file.filename.substring(0, firstUnderscore);
-            originalName = file.filename.substring(firstUnderscore + 1);
-          } else {
-            // Eski format: {uuid}.ext (underscore yok)
-            // Extension'ı çıkar ve UUID'yi al
-            const lastDot = file.filename.lastIndexOf('.');
-            if (lastDot === -1) {
-              continue;
-            }
-            
-            imageId = file.filename.substring(0, lastDot);
-            originalName = file.filename; // Full filename as originalName
-          }
-          
-          // UUID validation (basic check)
-          if (imageId.length < 32 || !imageId.includes('-')) {
-            continue;
-          }
-          
-          // Eğer zaten yüklüyse skip et
-          if (this.imageStore.has(imageId)) {
-            continue;
-          }
-          
-          // Metadata oluştur
-          const metadata: ImageMetadata = {
-            id: imageId,
-            originalName: originalName,
-            filename: file.filename,
-            mimetype: file.mimetype || 'image/jpeg',
-            size: file.size,
-            width: 0, // Dimensions unknown after restart
-            height: 0,
-            uploadedAt: new Date(file.createdAt),
-            processedVersions: []
-          };
-          
-          this.imageStore.set(imageId, metadata);
-          
-        } catch (error) {
-          // Silently skip files that can't be loaded
-          continue;
-        }
-      }
-      
-    } catch (error) {
-      // Silently fail - images will be loaded on demand
-    }
-  }
-
-  async processUpload(file: Express.Multer.File, options: UploadOptions = {}): Promise<ImageMetadata> {
+  async processUpload(userId: string, file: Express.Multer.File, options: UploadOptions = {}): Promise<ImageMetadata> {
     try {
       const imageId = randomUUID();
       const filename = `${imageId}_${file.originalname}`;
 
-      // Store file
       const storedFile = await this.storageService.saveFile(file.buffer, filename, file.mimetype);
-
-      // Get image dimensions (basic implementation)
       const dimensions = await this.getImageDimensions(file.buffer);
 
       const metadata: ImageMetadata = {
@@ -147,33 +46,38 @@ export class ImageService {
         processedVersions: []
       };
 
-      // Store metadata
-      this.imageStore.set(imageId, metadata);
-
+      await this.pipelineRepository.saveOriginalImage(userId, metadata, options);
       return metadata;
     } catch (error) {
       throw createError(`Failed to process upload: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
     }
   }
 
-  async processMultipleUploads(files: Express.Multer.File[], options: UploadOptions = {}): Promise<ImageMetadata[]> {
+  async processMultipleUploads(userId: string, files: Express.Multer.File[], options: UploadOptions = {}): Promise<ImageMetadata[]> {
     const results: ImageMetadata[] = [];
-    
+
     for (const file of files) {
       try {
-        const result = await this.processUpload(file, options);
+        const result = await this.processUpload(userId, file, options);
         results.push(result);
       } catch (error) {
         console.error(`Failed to process file ${file.originalname}:`, error);
-        // Continue with other files
       }
     }
 
     return results;
   }
 
-  async processWithFalAI(imageId: string, operation: string, parameters: Record<string, any> = {}, sourceProcessedVersionId?: string): Promise<ProcessedVersion> {
-    const image = this.imageStore.get(imageId);
+  async processWithFalAI(
+    userId: string,
+    imageId: string,
+    operation: string,
+    parameters: Record<string, any> = {},
+    sourceProcessedVersionId?: string,
+    angles?: number[],
+    customPrompt?: string
+  ): Promise<ProcessedVersion> {
+    const image = await this.pipelineRepository.getPipeline(userId, imageId);
     if (!image) {
       throw createError('Image not found', 404);
     }
@@ -184,7 +88,6 @@ export class ImageService {
       let imageData: Buffer;
       let sourceFilename: string;
 
-      // If sourceProcessedVersionId is provided, use processed image as source
       if (sourceProcessedVersionId) {
         const processedVersion = image.processedVersions?.find(pv => pv.id === sourceProcessedVersionId);
         if (!processedVersion) {
@@ -193,22 +96,37 @@ export class ImageService {
         imageData = await this.storageService.getFile(processedVersion.filename);
         sourceFilename = processedVersion.filename;
       } else {
-        // Use original image
         imageData = await this.storageService.getFile(image.filename);
         sourceFilename = image.filename;
       }
-      
-      // Process with fal.ai
-      // Use base64 for all operations (including upscale) since localhost URLs aren't accessible from fal.ai
-      const processedResult = await this.falAIService.processImage(imageData, operation, parameters);
-      
-      const endTime = Date.now();
-      const processingTimeMs = endTime - startTime;
 
-      // Extract AI model from operation
-      const aiModel = this.extractAIModel(operation);
+      // Generate prompt from angles if provided, otherwise use existing prompt in parameters
+      let finalParameters = { ...parameters };
+      let processedAngle: number | undefined = undefined;
       
-      // Generate smart filename
+      if (angles && angles.length > 0) {
+        // Process each angle - for now, process first angle (batch processing can be handled separately)
+        const angle = angles[0];
+        processedAngle = angle;
+        const finalPrompt = this.promptService.generateFinalPrompt(angle, customPrompt);
+        finalParameters = {
+          ...parameters,
+          prompt: finalPrompt,
+          angle: angle // Store angle in parameters for easy retrieval
+        };
+      } else if (customPrompt && customPrompt.trim()) {
+        // If only custom prompt provided without angles, append to existing prompt
+        const existingPrompt = parameters.prompt || '';
+        finalParameters = {
+          ...parameters,
+          prompt: existingPrompt ? `${existingPrompt}, ${customPrompt.trim()}` : customPrompt.trim()
+        };
+      }
+
+      const processedResult = await this.falAIService.processImage(imageData, operation, finalParameters);
+      const processingTimeMs = Date.now() - startTime;
+      const aiModel = this.extractAIModel(operation);
+
       const processedId = randomUUID();
       const smartFilename = this.generateSmartFilename(
         image.originalName,
@@ -217,40 +135,29 @@ export class ImageService {
         parameters,
         sourceProcessedVersionId ? sourceFilename : undefined
       );
-      
-      // Determine file extension
-      const fileExtension = '.jpg';
-      const processedFilename = `${processedId}_${smartFilename}${fileExtension}`;
-      
-      // Determine MIME type
-      const mimeType = 'image/jpeg';
-      
+
+      const processedFilename = `${processedId}_${smartFilename}.jpg`;
       const storedProcessed = await this.storageService.saveFile(
         processedResult.data,
         processedFilename,
-        mimeType
+        'image/jpeg'
       );
 
       const processedVersion: ProcessedVersion = {
         id: processedId,
         operation,
         aiModel,
-        parameters,
+        parameters: finalParameters, // Use finalParameters which includes angle
         filename: storedProcessed.filename,
         url: storedProcessed.url,
+        size: storedProcessed.size,
         createdAt: new Date(),
         processingTimeMs,
         sourceImageId: imageId,
         sourceProcessedVersionId: sourceProcessedVersionId || undefined
       };
 
-      // Update image metadata
-      if (!image.processedVersions) {
-        image.processedVersions = [];
-      }
-      image.processedVersions.push(processedVersion);
-      this.imageStore.set(imageId, image);
-
+      await this.pipelineRepository.addProcessedVersion(userId, imageId, processedVersion);
       return processedVersion;
     } catch (error) {
       throw createError(`Failed to process image with fal.ai: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
@@ -265,8 +172,6 @@ export class ImageService {
         return 'seedream';
       case 'nano-banana-edit':
         return 'nano-banana';
-      case 'topaz-upscale':
-        return 'topaz';
       default:
         return operation.split('-')[0] || 'unknown';
     }
@@ -279,58 +184,42 @@ export class ImageService {
     parameters: Record<string, any>,
     sourceFilename?: string
   ): string {
-    // Get base name from original filename (remove extension and UUID prefix if exists)
-    let baseName = originalName.replace(/\.[^/.]+$/, ""); // Remove extension
-    
-    // If sourceFilename is provided (processed version), try to extract original name from it
+    let baseName = originalName.replace(/\.[^/.]+$/, '');
+
     if (sourceFilename) {
-      // Try to extract original name from processed filename pattern
       const match = sourceFilename.match(/_[^_]+_(.+)$/);
       if (match && match[1]) {
-        baseName = match[1].replace(/\.[^/.]+$/, "");
+        baseName = match[1].replace(/\.[^/.]+$/, '');
       }
     }
-    
-    // Clean base name: remove special characters, keep only alphanumeric, spaces, hyphens, underscores
-    baseName = baseName.replace(/[^a-zA-Z0-9\s\-_]/g, "").trim();
-    // Replace spaces with hyphens
-    baseName = baseName.replace(/\s+/g, "-");
-    // Limit length
+
+    baseName = baseName.replace(/[^a-zA-Z0-9\s\-_]/g, '').trim();
+    baseName = baseName.replace(/\s+/g, '-');
     if (baseName.length > 50) {
       baseName = baseName.substring(0, 50);
     }
-    
-    // Build filename parts
+
     const parts: string[] = [];
-    
-    // Add base name if available
     if (baseName && baseName.trim().length > 0) {
       parts.push(baseName);
     }
-    
-    // Always add AI model name (required)
-    const modelDisplayName = aiModel.replace(/-/g, "_");
+
+    const modelDisplayName = aiModel.replace(/-/g, '_');
     if (modelDisplayName && modelDisplayName.trim().length > 0) {
       parts.push(modelDisplayName);
     } else {
-      // Fallback: use operation name if model name is empty
       const operationName = operation.split('-')[0] || 'processed';
       parts.push(operationName);
     }
-    
-    // Extract angle from prompt if available
+
     if (parameters.prompt) {
       const prompt = parameters.prompt.toLowerCase();
-      
-      // Try to extract numeric angle first
       const angleMatch = prompt.match(/(\d+)\s*(?:degree|deg|°)/i);
       if (angleMatch && angleMatch[1]) {
-        const angle = parseInt(angleMatch[1]);
-        // Normalize to common angles
+        const angle = parseInt(angleMatch[1], 10);
         const normalizedAngle = this.normalizeAngle(angle);
         parts.push(`${normalizedAngle}deg`);
       } else {
-        // Try to match common angle descriptions from prompt
         const angleMap: Record<string, string> = {
           'front view': '0deg',
           'side profile': '90deg',
@@ -346,89 +235,147 @@ export class ImageService {
         }
       }
     }
-    
-    // Add operation type if it's upscale
-    if (operation === 'topaz-upscale') {
-      parts.push('upscaled');
-    }
-    
-    return parts.join("_");
+
+    return parts.join('_');
   }
 
   private normalizeAngle(angle: number): number {
-    // Normalize angle to 0-360 range
     angle = angle % 360;
     if (angle < 0) angle += 360;
-    
-    // Snap to nearest common angle (0, 45, 90, 135, 180, 225, 270, 315)
+
     const commonAngles = [0, 45, 90, 135, 180, 225, 270, 315];
-    return commonAngles.reduce((prev, curr) => 
+    return commonAngles.reduce((prev, curr) =>
       Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
     );
   }
 
-  async getImage(imageId: string): Promise<ImageMetadata | null> {
-    return this.imageStore.get(imageId) || null;
+  async getImage(userId: string, imageId: string): Promise<ImageMetadata | null> {
+    return this.pipelineRepository.getPipeline(userId, imageId);
   }
 
-  async listImages(options: ListOptions): Promise<{ images: ImageMetadata[], total: number, page: number, totalPages: number }> {
-    const allImages = Array.from(this.imageStore.values());
-    
-    // Apply filter if provided
-    let filteredImages = allImages;
-    if (options.filter) {
-      const filterLower = options.filter.toLowerCase();
-      filteredImages = allImages.filter(img => 
-        img.originalName.toLowerCase().includes(filterLower) ||
-        img.mimetype.toLowerCase().includes(filterLower)
-      );
+  async listImages(userId: string, options: ListOptions): Promise<{ images: ImageMetadata[], total: number, page: number, totalPages: number }> {
+    try {
+      const pipelines = await this.pipelineRepository.listPipelines(userId);
+      const filtered = this.applyImageFilter(pipelines, options.filter);
+      const page = Math.max(1, options.page);
+      const limit = Math.max(1, options.limit);
+
+      const total = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const startIndex = (page - 1) * limit;
+      const images = filtered.slice(startIndex, startIndex + limit);
+
+      return {
+        images,
+        total,
+        page,
+        totalPages
+      };
+    } catch (error: any) {
+      console.error('❌ Error in listImages:', error);
+      // Re-throw with more context
+      if (error.message?.includes('index')) {
+        throw createError('Firestore index required. Please create composite index: pipelines collection, fields: userId (Ascending), uploadedAt (Descending)', 500);
+      }
+      throw createError(`Failed to list images: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
+    }
+  }
+
+  async listProcessedImages(userId: string, options: ProcessedImagesListOptions) {
+    const pipelines = await this.pipelineRepository.listPipelines(userId);
+    const allVersions = pipelines.flatMap((pipeline) => {
+      const versions = pipeline.processedVersions || [];
+      return versions.map(version => ({
+        ...version,
+        sourceImageId: pipeline.id
+      }));
+    });
+
+    let filtered = allVersions;
+    if (options.aiModel) {
+      filtered = filtered.filter(version => version.aiModel === options.aiModel);
+    }
+    if (typeof options.minProcessingTime === 'number') {
+      const minProcessingTime = options.minProcessingTime;
+      filtered = filtered.filter(version => version.processingTimeMs >= minProcessingTime);
+    }
+    if (typeof options.maxProcessingTime === 'number') {
+      const maxProcessingTime = options.maxProcessingTime;
+      filtered = filtered.filter(version => version.processingTimeMs <= maxProcessingTime);
     }
 
-    // Sort by upload date (newest first)
-    filteredImages.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+    filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    // Pagination
-    const total = filteredImages.length;
-    const totalPages = Math.ceil(total / options.limit);
-    const startIndex = (options.page - 1) * options.limit;
-    const endIndex = startIndex + options.limit;
-    const images = filteredImages.slice(startIndex, endIndex);
+    const page = Math.max(1, options.page);
+    const limit = Math.max(1, options.limit);
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const startIndex = (page - 1) * limit;
+    const processedImages = filtered.slice(startIndex, startIndex + limit);
 
     return {
-      images,
+      processedImages,
       total,
-      page: options.page,
+      page,
       totalPages
     };
   }
 
-  async deleteImage(imageId: string): Promise<void> {
-    const image = this.imageStore.get(imageId);
-    if (!image) {
+  async deleteImage(userId: string, imageId: string): Promise<void> {
+    const pipeline = await this.pipelineRepository.getPipeline(userId, imageId);
+    if (!pipeline) {
       throw createError('Image not found', 404);
     }
 
     try {
-      // Delete original file
-      await this.storageService.deleteFile(image.filename);
-
-      // Delete processed versions
-      if (image.processedVersions) {
-        for (const version of image.processedVersions) {
+      await this.storageService.deleteFile(pipeline.filename);
+      if (pipeline.processedVersions) {
+        for (const version of pipeline.processedVersions) {
           await this.storageService.deleteFile(version.filename);
         }
       }
 
-      // Remove from store
-      this.imageStore.delete(imageId);
+      await this.pipelineRepository.deletePipeline(userId, imageId);
     } catch (error) {
       throw createError(`Failed to delete image: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
     }
   }
 
+  async deleteProcessedVersion(userId: string, imageId: string, versionId: string): Promise<void> {
+    const pipeline = await this.pipelineRepository.getPipeline(userId, imageId);
+    if (!pipeline) {
+      throw createError('Image not found', 404);
+    }
+
+    // Find the version to delete
+    const version = pipeline.processedVersions?.find(v => v.id === versionId);
+    if (!version) {
+      throw createError('Processed version not found', 404);
+    }
+
+    try {
+      // Delete the file from storage
+      await this.storageService.deleteFile(version.filename);
+      
+      // Delete the version from database
+      await this.pipelineRepository.deleteProcessedVersion(userId, imageId, versionId);
+    } catch (error) {
+      throw createError(`Failed to delete processed version: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
+    }
+  }
+
+  private applyImageFilter(images: ImagePipelineRecord[], filter?: string) {
+    if (!filter) {
+      return images;
+    }
+    const lowerFilter = filter.toLowerCase();
+    return images.filter(img =>
+      img.originalName.toLowerCase().includes(lowerFilter) ||
+      img.mimetype.toLowerCase().includes(lowerFilter)
+    );
+  }
+
   private async getImageDimensions(buffer: Buffer): Promise<{ width: number, height: number }> {
-    // Basic implementation - in production, use a library like 'sharp' or 'jimp'
-    // For now, return default dimensions
     return { width: 0, height: 0 };
   }
 }

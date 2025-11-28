@@ -19,7 +19,7 @@ Modern Next.js frontend for AI-powered image processing with a clean, intuitive 
 - **Styling**: Tailwind CSS with custom design system
 - **UI Components**: Custom component library
 - **File Upload**: react-dropzone
-- **HTTP Client**: Axios
+- **HTTP Client**: Axios + Firebase Auth token injection
 - **Icons**: Lucide React
 
 ## Components
@@ -49,6 +49,12 @@ Modern Next.js frontend for AI-powered image processing with a clean, intuitive 
    Create `.env.local`:
    ```env
    NEXT_PUBLIC_API_URL=http://localhost:4000/api
+   NEXT_PUBLIC_FIREBASE_API_KEY=your_web_api_key
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
    ```
 
 3. **Development**:
@@ -91,11 +97,9 @@ src/
 ### Process Images
 1. Select an image from your library
 2. Choose from available AI operations:
-   - **Enhance Quality**: Improve image sharpness and quality
-   - **Remove Background**: Remove image background
-   - **Upscale Image**: Increase resolution 2x
-   - **Style Transfer**: Apply artistic styles
-   - **Generate Variation**: Create image variations
+   - **Seedream Edit**: İleri seviye sahne düzenleme
+   - **Nano Banana Edit**: Hızlı açı/duruş dönüşümleri
+   - **Flux Pro Kontext**: Bağlamı koruyan nesne yerleştirme
 3. View and download processed results
 
 ### Manage Images

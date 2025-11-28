@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Filter, Download, Clock, Zap, Grid, List } from 'lucide-react';
+import { Filter, Download, Clock, Zap, Grid, List, Grid3x3 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { imageAPI, getImageUrl } from '@/lib/api';
@@ -149,7 +149,6 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                 <option value="flux">Flux Pro</option>
                 <option value="seedream">Seedream</option>
                 <option value="nano-banana">Nano Banana</option>
-                <option value="topaz">Topaz Upscale</option>
               </select>
             </div>
             <div className="space-y-1.5">
@@ -201,21 +200,33 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                 : 'space-y-4'
               }>
                 {processedImages.map((version) => {
-                  // Extract angle from prompt
-                  const extractAngle = (prompt: string): string | null => {
+                  // Extract angle from parameters.angle first, then from prompt
+                  const extractAngle = (params: Record<string, any>): string | null => {
+                    // First, check if angle is directly stored in parameters
+                    if (params.angle !== undefined && params.angle !== null) {
+                      return String(params.angle);
+                    }
+                    
+                    // Fallback: extract from prompt
+                    const prompt = params.prompt;
                     if (!prompt) return null;
-                    if (prompt.includes('No rotation') || prompt.includes('Same pose as reference')) {
+                    
+                    // New format: "0° rotation" or "Rotate X° clockwise"
+                    if (prompt.includes('0° rotation') || prompt.match(/^0°\s/)) {
                       return '0';
                     }
-                    const angleMatch = prompt.match(/Rotate the model by (\d+)°/i);
+                    
+                    // Match "Rotate X° clockwise" pattern
+                    const angleMatch = prompt.match(/Rotate\s+(\d+)°\s+clockwise/i);
                     if (angleMatch) {
                       return angleMatch[1];
                     }
-                    // Fallback: Try to extract any angle number
-                    const fallbackMatch = prompt.match(/(\d+)\s*(?:degree|deg|°)/i);
+                    
+                    // Fallback: Try to extract any angle number at the start
+                    const fallbackMatch = prompt.match(/^(\d+)°\s/i);
                     return fallbackMatch ? fallbackMatch[1] : null;
                   };
-                  const angle = version.parameters?.prompt ? extractAngle(version.parameters.prompt) : null;
+                  const angle = version.parameters ? extractAngle(version.parameters) : null;
 
                   return (
                   <div

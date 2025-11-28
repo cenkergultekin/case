@@ -56,19 +56,8 @@ export function AnglePicker({
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-gray-700">
-          Seçili Açılar: <span className="text-primary font-semibold">
-            {selectedAngles.length > 0 
-              ? selectedAngles.map(a => getAngleLabel(a)).join(', ')
-              : 'Hiçbiri'
-            }
-          </span>
-        </label>
-      </div>
-      
       {/* Angle Buttons */}
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
         {VALID_ANGLES.map((angle) => {
           const isSelected = selectedAngles.includes(angle);
           
@@ -78,14 +67,18 @@ export function AnglePicker({
               type="button"
               onClick={() => toggleAngle(angle)}
               className={`
-                px-4 py-2.5 rounded-lg text-sm font-medium transition-smooth min-w-[70px]
+                w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
+                flex items-center justify-center relative overflow-hidden
                 ${isSelected
-                  ? 'bg-primary text-white shadow-card hover:shadow-lg'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
+                  ? 'bg-gradient-primary text-white shadow-card hover:shadow-card-hover border border-primary/30'
+                  : 'bg-white/60 backdrop-blur-sm text-gray-700 hover:bg-white border border-gray-200 hover:border-primary/30 hover:shadow-minimal'
                 }
               `}
             >
-              {getAngleLabel(angle)}
+              {isSelected && (
+                <div className="absolute inset-0 bg-white/10"></div>
+              )}
+              <span className="relative z-10">{getAngleLabel(angle)}</span>
             </button>
           );
         })}

@@ -10,17 +10,15 @@ const uploadSchema = Joi.object({
 
 const processSchema = Joi.object({
   operation: Joi.string().valid(
-    'enhance',
-    'remove-background',
-    'upscale',
-    'style-transfer',
-    'generate-variation'
+    'seedream-edit',
+    'flux-pro-kontext',
+    'nano-banana-edit'
   ).required(),
   parameters: Joi.object({
-    scale_factor: Joi.number().min(1).max(4).optional(),
-    strength: Joi.number().min(0).max(1).optional(),
     prompt: Joi.string().max(1000).optional(),
-    style: Joi.string().max(100).optional()
+    image_urls: Joi.array().items(Joi.string().uri()).optional(),
+    num_images: Joi.number().min(1).max(4).optional(),
+    seed: Joi.number().optional()
   }).optional()
 });
 

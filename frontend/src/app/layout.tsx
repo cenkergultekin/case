@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ImageFlow - AI Image Processing",
+  title: "ImageFlow",
   description: "Transform your images with AI-powered tools. Professional image editing, rotation, and upscaling made simple.",
   keywords: ["AI", "image processing", "image editing", "upscaling", "rotation"],
   authors: [{ name: "ImageFlow" }],

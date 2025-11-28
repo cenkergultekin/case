@@ -1,4 +1,6 @@
+'use client';
 import axios from 'axios';
+import { fetchIdToken } from '@/lib/authClient';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
@@ -18,7 +20,17 @@ export const api = axios.create({
 
 // Request interceptor
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    if (typeof window !== 'undefined') {
+      try {
+        const token = await fetchIdToken();
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Failed to attach Firebase auth token:', error);
+      }
+    }
+
     console.log(`Making ${config.method?.toUpperCase()} request to ${config.url}`);
     return config;
   },
@@ -85,16 +97,22 @@ export const imageAPI = {
   },
 
   // Process image with fal.ai
-  processImage: async (imageId: string, operation: string, parameters?: Record<string, any>, sourceProcessedVersionId?: string) => {
-    // Extended timeouts for retry mechanism and slow API responses
-    // Backend has retry mechanism (3 attempts) + API processing time
-    const timeout = operation === 'topaz-upscale' ? 300000 : 240000; // 5 minutes for upscale, 4 minutes for others
+  processImage: async (
+    imageId: string, 
+    operation: string, 
+    parameters?: Record<string, any>, 
+    sourceProcessedVersionId?: string,
+    angles?: number[],
+    customPrompt?: string
+  ) => {
     const response = await api.post(`/images/process/${imageId}`, {
       operation,
       parameters: parameters || {},
-      ...(sourceProcessedVersionId && { sourceProcessedVersionId })
+      ...(sourceProcessedVersionId && { sourceProcessedVersionId }),
+      ...(angles && { angles }),
+      ...(customPrompt && { customPrompt })
     }, {
-      timeout
+      timeout: 240000
     });
     return response.data;
   },
@@ -126,6 +144,12 @@ export const imageAPI = {
   // Delete image
   deleteImage: async (imageId: string) => {
     const response = await api.delete(`/images/${imageId}`);
+    return response.data;
+  },
+
+  // Delete processed version
+  deleteProcessedVersion: async (imageId: string, versionId: string) => {
+    const response = await api.delete(`/images/${imageId}/versions/${versionId}`);
     return response.data;
   },
 

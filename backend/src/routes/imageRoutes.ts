@@ -3,9 +3,17 @@ import multer from 'multer';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { ImageService } from '../services/ImageService';
 import { validateImageUpload } from '../validators/imageValidator';
+import { firebaseAuthMiddleware } from '../middleware/firebaseAuth';
 
 const router = Router();
 const imageService = new ImageService();
+
+const requireUserId = (req: Request) => {
+  if (!req.user?.uid) {
+    throw createError('User not authenticated', 401);
+  }
+  return req.user.uid;
+};
 
 // Configure multer for file uploads
 const upload = multer({
@@ -24,8 +32,10 @@ const upload = multer({
   }
 });
 
+router.use(firebaseAuthMiddleware);
+
 // Upload single image
-router.post('/upload', 
+router.post('/upload',
   upload.single('image'),
   validateImageUpload,
   asyncHandler(async (req: Request, res: Response) => {
@@ -33,7 +43,8 @@ router.post('/upload',
       throw createError('No image file provided', 400);
     }
 
-    const result = await imageService.processUpload(req.file, req.body);
+    const userId = requireUserId(req);
+    const result = await imageService.processUpload(userId, req.file, req.body);
     
     res.status(201).json({
       success: true,
@@ -53,7 +64,8 @@ router.post('/upload-multiple',
       throw createError('No image files provided', 400);
     }
 
-    const results = await imageService.processMultipleUploads(files, req.body);
+    const userId = requireUserId(req);
+    const results = await imageService.processMultipleUploads(userId, files, req.body);
     
     res.status(201).json({
       success: true,
@@ -66,10 +78,11 @@ router.post('/upload-multiple',
 // List processed images (spesifik route'lar önce gelmeli)
 router.get('/processed',
   asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
     const { page = 1, limit = 20, aiModel, minProcessingTime, maxProcessingTime } = req.query;
-    const processedImages = await imageService.listProcessedImages({
-      page: Number(page),
-      limit: Number(limit),
+    const processedImages = await imageService.listProcessedImages(userId, {
+      page: Number(page) || 1,
+      limit: Number(limit) || 20,
       aiModel: aiModel as string,
       minProcessingTime: minProcessingTime ? Number(minProcessingTime) : undefined,
       maxProcessingTime: maxProcessingTime ? Number(maxProcessingTime) : undefined
@@ -85,14 +98,15 @@ router.get('/processed',
 // Process image with fal.ai (spesifik route, :imageId'den önce gelmeli)
 router.post('/process/:imageId',
   asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
     const { imageId } = req.params;
-    const { operation, parameters, sourceProcessedVersionId } = req.body;
+    const { operation, parameters, sourceProcessedVersionId, angles, customPrompt } = req.body;
 
     if (!operation) {
       throw createError('Processing operation is required', 400);
     }
 
-    const result = await imageService.processWithFalAI(imageId, operation, parameters, sourceProcessedVersionId);
+    const result = await imageService.processWithFalAI(userId, imageId, operation, parameters, sourceProcessedVersionId, angles, customPrompt);
     
     res.status(200).json({
       success: true,
@@ -105,8 +119,9 @@ router.post('/process/:imageId',
 // Get image by ID (genel route, en sonda)
 router.get('/:imageId',
   asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
     const { imageId } = req.params;
-    const image = await imageService.getImage(imageId);
+    const image = await imageService.getImage(userId, imageId);
     
     if (!image) {
       throw createError('Image not found', 404);
@@ -122,10 +137,11 @@ router.get('/:imageId',
 // List user images (genel route, en sonda)
 router.get('/',
   asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
     const { page = 1, limit = 10, filter } = req.query;
-    const images = await imageService.listImages({
-      page: Number(page),
-      limit: Number(limit),
+    const images = await imageService.listImages(userId, {
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
       filter: filter as string
     });
     
@@ -136,11 +152,26 @@ router.get('/',
   })
 );
 
+// Delete processed version (must come before delete image route)
+router.delete('/:imageId/versions/:versionId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
+    const { imageId, versionId } = req.params;
+    await imageService.deleteProcessedVersion(userId, imageId, versionId);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Processed version deleted successfully'
+    });
+  })
+);
+
 // Delete image
 router.delete('/:imageId',
   asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
     const { imageId } = req.params;
-    await imageService.deleteImage(imageId);
+    await imageService.deleteImage(userId, imageId);
     
     res.status(200).json({
       success: true,
