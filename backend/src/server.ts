@@ -8,11 +8,13 @@ import { errorHandler } from './middleware/errorHandler';
 import { imageRoutes } from './routes/imageRoutes';
 import { healthRoutes } from './routes/healthRoutes';
 
-// Load environment variables from parent directory
+// Load environment variables
+// Try backend/.env first, then root .env, then default
+dotenv.config({ path: '.env' });
 dotenv.config({ path: '../.env' });
 
 const app = express();
-const PORT = process.env.BACKEND_PORT || 4000;
+const PORT = process.env.PORT || process.env.BACKEND_PORT || 4000;
 
 // Security middleware - Static files için daha esnek ayarlar
 app.use(helmet({
@@ -23,8 +25,26 @@ app.use(helmet({
 app.use(compression());
 
 // CORS configuration
+// Support multiple origins (comma-separated) or single origin
+const getAllowedOrigins = (): string[] => {
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl) {
+    return ['http://localhost:3000'];
+  }
+  // Support comma-separated origins for multiple environments
+  return frontendUrl.split(',').map(url => url.trim());
+};
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    const allowedOrigins = getAllowedOrigins();
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -42,11 +62,11 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/uploads', (req, res, next) => {
   // CORS headers for static files
   const origin = req.headers.origin;
-  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const allowedOrigins = getAllowedOrigins();
   
-  // Allow all origins for static files (development) or specific origin
-  if (!origin || origin === allowedOrigin || process.env.NODE_ENV === 'development') {
-    res.setHeader('Access-Control-Allow-Origin', origin || allowedOrigin || '*');
+  // Allow requests from allowed origins or in development
+  if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+    res.setHeader('Access-Control-Allow-Origin', origin || allowedOrigins[0] || '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
