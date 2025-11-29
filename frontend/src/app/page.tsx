@@ -150,27 +150,31 @@ export default function Home() {
       ));
       
       // Remove completed processing images using functional update to get latest selectedImage
-      setProcessingImages(processingPrev => {
-        const sourceId = processedVersion.sourceImageId || processedVersion.sourceProcessedVersionId || prev.id;
-        
-        // Extract angle from processedVersion to match more accurately
-        const versionAngle = processedVersion.parameters?.angle !== undefined 
-          ? processedVersion.parameters.angle 
-          : null;
-        
-        // Remove one processing image that matches the source and angle (if available)
-        // Also match by original image id since we always use original image id as sourceId
-        const matchingIndex = processingPrev.findIndex(p => {
-          const sourceMatches = p.sourceId === sourceId || p.sourceId === prev.id;
-          const angleMatches = versionAngle === null || p.angle === versionAngle || p.angle === undefined;
-          return sourceMatches && angleMatches;
+      // Use setTimeout to ensure processing state is visible before removal
+      setTimeout(() => {
+        setProcessingImages(processingPrev => {
+          const sourceId = processedVersion.sourceImageId || processedVersion.sourceProcessedVersionId || prev.id;
+          
+          // Extract angle from processedVersion to match more accurately
+          const versionAngle = processedVersion.parameters?.angle !== undefined 
+            ? processedVersion.parameters.angle 
+            : null;
+          
+          // Remove one processing image that matches the source and angle (if available)
+          // Also match by original image id since we always use original image id as sourceId
+          const matchingIndex = processingPrev.findIndex(p => {
+            const sourceMatches = p.sourceId === sourceId || p.sourceId === prev.id;
+            const angleMatches = versionAngle === null || p.angle === versionAngle || p.angle === undefined;
+            return sourceMatches && angleMatches;
+          });
+          
+          if (matchingIndex !== -1) {
+            console.log('🟢 Removing processing image:', matchingIndex);
+            return processingPrev.filter((_, index) => index !== matchingIndex);
+          }
+          return processingPrev;
         });
-        
-        if (matchingIndex !== -1) {
-          return processingPrev.filter((_, index) => index !== matchingIndex);
-        }
-        return processingPrev;
-      });
+      }, 100); // Small delay to ensure UI updates first
       
       return updatedImage;
     });

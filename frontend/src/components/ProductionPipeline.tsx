@@ -79,7 +79,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
       currentVersionIds.forEach(id => previousVersionIds.add(id));
       previousProcessedVersionsRef.current = previousVersionIds;
       isInitialMountRef.current = false;
-      return; // Don't process on initial mount
+      // Don't return early - we still need to sync processingImages
     }
     
     // Find newly completed images by comparing with previous versions
