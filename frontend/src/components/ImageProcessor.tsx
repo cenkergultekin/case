@@ -371,7 +371,23 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
           results.push(result);
           
           // Her başarılı sonuç için hemen callback çağır (kullanıcı sonuçları görebilsin)
-          onProcessComplete?.(result.data);
+          // Handle different response formats (production vs development)
+          // API returns: { success: true, data: ProcessedVersion } or just ProcessedVersion
+          const processedVersion = result?.data || result;
+          if (processedVersion && processedVersion.id) {
+            // Normalize URL if it contains localhost
+            if (processedVersion.url && (processedVersion.url.includes('localhost') || processedVersion.url.includes('127.0.0.1'))) {
+              processedVersion.url = normalizeImageUrl(processedVersion.url, processedVersion.filename);
+            }
+            // Ensure all required fields are present
+            const normalizedVersion = {
+              ...processedVersion,
+              url: processedVersion.url || normalizeImageUrl(undefined, processedVersion.filename)
+            };
+            onProcessComplete?.(normalizedVersion);
+          } else {
+            console.warn('Invalid processed version received:', processedVersion);
+          }
           
           // Update completed progress
           setBatchProgress({ total: totalAngles, completed: i + 1, current: i + 1, progress: ((i + 1) / totalAngles) * 100 });

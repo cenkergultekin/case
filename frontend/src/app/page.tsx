@@ -7,7 +7,7 @@ import { ProductionPipeline } from '@/components/ProductionPipeline';
 import { LandingPage } from '@/components/LandingPage';
 import { Button } from '@/components/ui/Button';
 import { AuthForm } from '@/components/AuthForm';
-import { imageAPI, getImageUrl } from '@/lib/api';
+import { imageAPI, getImageUrl, normalizeImageUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Image as ImageIcon, Upload, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -107,6 +107,11 @@ export default function Home() {
   };
 
   const handleProcessComplete = (processedVersion: any) => {
+    // Normalize URL if it contains localhost
+    if (processedVersion?.url && processedVersion.url.includes('localhost')) {
+      processedVersion.url = normalizeImageUrl(processedVersion.url, processedVersion.filename);
+    }
+    
     // Functional state update to avoid closure issues with rapid sequential updates
     setSelectedImage(prev => {
       if (!prev) return prev;

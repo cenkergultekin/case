@@ -154,7 +154,10 @@ export const imageAPI = {
     }, {
       timeout: 240000
     });
-    return response.data;
+    // Handle different response formats (production vs development)
+    // Backend returns: { success: true, data: ProcessedVersion }
+    // Return the data field directly for consistency
+    return response.data?.data || response.data;
   },
 
   // Generate smart prompt via OpenRouter assistant
