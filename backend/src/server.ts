@@ -75,6 +75,21 @@ app.use('/api/uploads', (req, res, next) => {
   next();
 }, express.static('uploads'));
 
+// Root route - Welcome message
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Backend API is running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      images: '/api/images',
+      uploads: '/api/uploads'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/images', imageRoutes);
