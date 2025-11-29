@@ -1,44 +1,21 @@
 import { Router, Request, Response } from 'express';
-import multer from 'multer';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { ImageService } from '../services/ImageService';
 import { PromptAssistantService } from '../services/PromptAssistantService';
 import { validateImageUpload } from '../validators/imageValidator';
 import { firebaseAuthMiddleware } from '../middleware/firebaseAuth';
+import { imageUpload } from '../middleware/upload';
+import { requireUserId } from '../utils/auth';
 
 const router = Router();
 const imageService = new ImageService();
 const promptAssistantService = new PromptAssistantService();
 
-const requireUserId = (req: Request) => {
-  if (!req.user?.uid) {
-    throw createError('User not authenticated', 401);
-  }
-  return req.user.uid;
-};
-
-// Configure multer for file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 5 // Max 5 files at once
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.'));
-    }
-  }
-});
-
 router.use(firebaseAuthMiddleware);
 
 // Upload single image
 router.post('/upload',
-  upload.single('image'),
+  imageUpload.single('image'),
   validateImageUpload,
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
@@ -58,7 +35,7 @@ router.post('/upload',
 
 // Upload multiple images
 router.post('/upload-multiple',
-  upload.array('images', 5),
+  imageUpload.array('images', 5),
   asyncHandler(async (req: Request, res: Response) => {
     const files = req.files as Express.Multer.File[];
     

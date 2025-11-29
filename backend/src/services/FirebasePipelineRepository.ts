@@ -133,8 +133,6 @@ export class FirebasePipelineRepository {
           throw indexError;
         }
       }
-      
-      console.log(`📚 Found ${snapshot.docs.length} pipelines for user ${userId}`);
 
       const pipelines: ImagePipelineRecord[] = await Promise.all(
         snapshot.docs.map(async (docSnapshot: admin.firestore.QueryDocumentSnapshot) => {
@@ -181,7 +179,7 @@ export class FirebasePipelineRepository {
 
       return pipelines;
     } catch (error: any) {
-      console.error('❌ Error listing pipelines:', error);
+      console.error('Error listing pipelines:', error);
       throw error;
     }
   }

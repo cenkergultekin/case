@@ -65,12 +65,10 @@ export default function Home() {
     try {
       if (!currentUser) return;
       const response = await imageAPI.listImages();
-      console.log('📚 Load images response:', response);
       const imagesList = response.data?.images || response.images || [];
-      console.log('📚 Loaded images count:', imagesList.length);
       setImages(imagesList);
     } catch (error) {
-      console.error('❌ Failed to load images:', error);
+      console.error('Failed to load images:', error);
       // Show user-friendly error
       if (error instanceof Error) {
         console.error('Error details:', error.message);
@@ -114,7 +112,7 @@ export default function Home() {
       if (!prev) return prev;
       
       const updatedImage = {
-        ...prev,  // ✅ Use latest state, not closure state
+        ...prev,
         processedVersions: [...(prev.processedVersions || []), processedVersion]
       };
       
@@ -620,10 +618,7 @@ export default function Home() {
                 onSelectAsSource={handleSelectAsSource}
                 onBack={() => setViewMode('processing')}
                 onDeleteVersion={handleVersionDelete}
-                processingImages={processingImages.filter(p => {
-                  // Include processing images that match the current image
-                  return p.sourceId === selectedImage.id;
-                })}
+                processingImages={processingImages}
               />
             </div>
           </div>

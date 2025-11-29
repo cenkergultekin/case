@@ -31,7 +31,6 @@ api.interceptors.request.use(
       }
     }
 
-    console.log(`Making ${config.method?.toUpperCase()} request to ${config.url}`);
     return config;
   },
   (error) => {

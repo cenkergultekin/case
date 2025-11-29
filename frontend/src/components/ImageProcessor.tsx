@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Loader2, Download, Trash2, X, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
@@ -115,6 +115,7 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
   const [batchProgress, setBatchProgress] = useState<{ total: number; completed: number; current: number; progress: number } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [modalScrollPosition, setModalScrollPosition] = useState<number>(0);
+  const confirmScrollAnchorRef = useRef<HTMLDivElement | null>(null);
   const originalImageUrl = React.useMemo(() => getImageUrl(image.filename), [image.filename]);
   const selectedSourceVersionData = React.useMemo(() => {
     if (!selectedSourceVersion) return null;
@@ -263,13 +264,17 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
     setPendingAngles(effectiveAngles);
     setModalScrollPosition(window.scrollY);
     setShowConfirmModal(true);
-    // Modal açıldığında scroll pozisyonunu koru ama modal görünür olsun
+
+    // Bileşenin üst kısmını görünür alana kaydırarak, fixed modalın
+    // ekranda tam olarak görünmesini sağla (modal max 90vh olduğu için)
     setTimeout(() => {
-      const modalElement = document.querySelector('[data-modal="confirm"]');
-      if (modalElement) {
-        modalElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (confirmScrollAnchorRef.current) {
+        confirmScrollAnchorRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
       }
-    }, 100);
+    }, 50);
   };
 
   const handleConfirmProcess = async () => {
@@ -334,11 +339,6 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
         
         // Her açı için ayrı istek gönder
         const finalPrompt = prompt.trim() || undefined;
-        if (finalPrompt) {
-          console.log(`📝 Prompt modele gönderiliyor (${angleToProcess}°):`, finalPrompt);
-        } else {
-          console.log(`⚠️ Prompt boş! Açı: ${angleToProcess}°, angleChanged: ${angleChanged}`);
-        }
         
         // Eğer açı değişmediyse ama prompt varsa, mevcut açıyı gönder ki backend rotation prompt + custom prompt birleştirebilsin
         // Eğer açı değiştiyse, yeni açıyı gönder
@@ -357,13 +357,6 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
           customPrompt: finalPrompt,
           ...(validSourceVersion && { sourceProcessedVersionId: validSourceVersion })
         };
-        
-        console.log(`📤 Request body:`, {
-          operation: selectedOperation,
-          angles: anglesToSend,
-          customPrompt: finalPrompt ? `${finalPrompt.substring(0, 50)}...` : '(none)',
-          hasSourceVersion: !!selectedSourceVersion
-        });
         
         try {
           const imageStartTime = Date.now();
@@ -451,7 +444,7 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
 
   return (
     <div className="glass rounded-2xl shadow-card-hover border border-white/20 overflow-hidden">
-      <div className="bg-gradient-primary p-4 relative overflow-hidden">
+      <div ref={confirmScrollAnchorRef} className="bg-gradient-primary p-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-white/5"></div>
         <div className="relative flex items-center justify-between">
           <div>

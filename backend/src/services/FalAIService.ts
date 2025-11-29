@@ -26,9 +26,6 @@ export class FalAIService {
     }
     
     this.apiKey = process.env.FAL_KEY || process.env.FAL_SUBSCRIBER_KEY || '';
-    
-    console.log('🔧 FalAIService constructor - API key status:', this.apiKey ? 'FOUND' : 'NOT FOUND');
-    
     if (this.apiKey) {
       fal.config({
         credentials: this.apiKey
@@ -46,7 +43,6 @@ export class FalAIService {
   ): Promise<FalAIProcessResult> {
     // Double-check API key at runtime
     const runtimeApiKey = process.env.FAL_KEY || process.env.FAL_SUBSCRIBER_KEY;
-    console.log('🔍 Runtime API key check:', runtimeApiKey ? 'FOUND' : 'NOT FOUND');
     
     if (!this.apiKey && !runtimeApiKey) {
       throw createError('FAL_KEY or FAL_SUBSCRIBER_KEY not configured', 500);
@@ -55,7 +51,6 @@ export class FalAIService {
     // Use runtime key if constructor key is missing
     const activeApiKey = this.apiKey || runtimeApiKey;
     if (activeApiKey && activeApiKey !== this.apiKey) {
-      console.log('🔄 Updating fal.ai config with runtime key');
       fal.config({
         credentials: activeApiKey
       });
@@ -64,7 +59,7 @@ export class FalAIService {
 
     try {
       if (!parameters.prompt || !parameters.prompt.trim()) {
-        console.error(`❌ FalAIService - Prompt is missing or empty!`, {
+        console.error('FalAIService - Prompt is missing or empty!', {
           operation,
           hasPrompt: !!parameters.prompt,
           promptLength: parameters.prompt?.length || 0,
@@ -73,11 +68,6 @@ export class FalAIService {
         });
         throw createError('Prompt is required for AI image processing', 400);
       }
-      console.log(`🎯 FalAIService - Processing ${operation} with prompt:`, {
-        promptLength: parameters.prompt.length,
-        promptPreview: parameters.prompt.substring(0, 150) + (parameters.prompt.length > 150 ? '...' : ''),
-        fullPrompt: parameters.prompt
-      });
 
       // Convert buffer to base64 for fal.ai
       const imageBase64 = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
@@ -132,12 +122,6 @@ export class FalAIService {
   private async seedreamEdit(imageBase64: string, parameters: Record<string, any>) {
     const imageUrls = parameters.image_urls || [imageBase64];
     
-    console.log(`🎨 Seedream Edit - Sending to Fal.ai:`, {
-      prompt: parameters.prompt,
-      promptLength: parameters.prompt?.length || 0,
-      imageUrlsCount: imageUrls.length
-    });
-    
     return await fal.subscribe('fal-ai/bytedance/seedream/v4/edit', {
       input: {
         prompt: parameters.prompt,
@@ -145,15 +129,7 @@ export class FalAIService {
         ...parameters
       },
       logs: true,
-      onQueueUpdate: (update) => {
-        console.log(`🎨 Seedream Edit - Queue Update:`, {
-          status: update.status,
-          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
-        });
-        if (update.status === "IN_PROGRESS") {
-          console.log('🎨 Seedream Edit - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
-        }
-      }
+      onQueueUpdate: () => {}
     });
   }
 
@@ -165,11 +141,6 @@ export class FalAIService {
    * - Best for: Object insertion, contextual modifications, realistic edits
    */
   private async fluxProKontext(imageBase64: string, parameters: Record<string, any>) {
-    console.log(`⚡ Flux Pro Kontext - Sending to Fal.ai:`, {
-      prompt: parameters.prompt,
-      promptLength: parameters.prompt?.length || 0
-    });
-    
     return await fal.subscribe('fal-ai/flux-pro/kontext', {
       input: {
         prompt: parameters.prompt,
@@ -177,15 +148,7 @@ export class FalAIService {
         ...parameters
       },
       logs: true,
-      onQueueUpdate: (update) => {
-        console.log(`⚡ Flux Pro Kontext - Queue Update:`, {
-          status: update.status,
-          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
-        });
-        if (update.status === "IN_PROGRESS") {
-          console.log('⚡ Flux Pro Kontext - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
-        }
-      }
+      onQueueUpdate: () => {}
     });
   }
 
@@ -199,13 +162,6 @@ export class FalAIService {
   private async nanoBananaEdit(imageBase64: string, parameters: Record<string, any>) {
     const imageUrls = parameters.image_urls || [imageBase64];
     
-    console.log(`🍌 Nano Banana Edit - Sending to Fal.ai:`, {
-      prompt: parameters.prompt,
-      promptLength: parameters.prompt?.length || 0,
-      imageUrlsCount: imageUrls.length,
-      hasOtherParams: Object.keys(parameters).filter(k => !['prompt', 'image_urls'].includes(k)).length
-    });
-    
     return await fal.subscribe('fal-ai/nano-banana/edit', {
       input: {
         prompt: parameters.prompt,
@@ -213,15 +169,7 @@ export class FalAIService {
         ...parameters
       },
       logs: true,
-      onQueueUpdate: (update) => {
-        console.log(`🍌 Nano Banana Edit - Queue Update:`, {
-          status: update.status,
-          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
-        });
-        if (update.status === "IN_PROGRESS") {
-          console.log('🍌 Nano Banana Edit - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
-        }
-      }
+      onQueueUpdate: () => {}
     });
   }
 
@@ -238,12 +186,6 @@ export class FalAIService {
           ? parameters.angle
           : undefined;
 
-    console.log(`🌀 Flux 2 Multi Angles - Sending to Fal.ai:`, {
-      prompt: parameters.prompt,
-      promptLength: parameters.prompt?.length || 0,
-      horizontalAngle
-    });
-
     return await fal.subscribe('fal-ai/flux-2-lora-gallery/multiple-angles', {
       input: {
         image_urls: [imageBase64],
@@ -252,15 +194,7 @@ export class FalAIService {
         ...parameters
       },
       logs: true,
-      onQueueUpdate: (update) => {
-        console.log(`🌀 Flux 2 Multi Angles - Queue Update:`, {
-          status: update.status,
-          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
-        });
-        if (update.status === 'IN_PROGRESS') {
-          console.log('🌀 Flux 2 Multiple Angles - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
-        }
-      }
+      onQueueUpdate: () => {}
     });
   }
 
@@ -313,12 +247,9 @@ export class FalAIService {
   async testConnection(): Promise<boolean> {
     try {
       if (!this.apiKey) {
-        console.log('❌ No API key found');
         return false;
       }
-      
-      console.log('🔍 Testing fal.ai connection...');
-      
+ 
       // Test with a simple HTTP request to check authentication
       const response = await fetch('https://fal.run/fal-ai/fast-sdxl', {
         method: 'POST',
@@ -332,13 +263,11 @@ export class FalAIService {
           }
         })
       });
-      
+
       const isConnected = response.status !== 401 && response.status !== 403;
-      console.log(`${isConnected ? '✅' : '❌'} Fal.ai connection test: ${response.status}`);
-      
       return isConnected;
     } catch (error) {
-      console.error('❌ Fal.ai connection test failed:', error);
+      console.error('Fal.ai connection test failed:', error);
       return false;
     }
   }

@@ -1,6 +1,6 @@
 # ImageFlow - AI Destekli Görsel İşleme Kılavuzu
 
-## 📋 İçindekiler
+## İçindekiler
 
 1. [Genel Bakış](#genel-bakış)
 2. [Başlangıç](#başlangıç)
@@ -15,22 +15,22 @@
 
 ---
 
-## 🎯 Genel Bakış
+## Genel Bakış
 
 ImageFlow, AI modelleri kullanarak görsellerinizi farklı açılardan üretmenize ve iyileştirmenize olanak sağlayan bir görsel işleme platformudur. Sistem, üç farklı AI modeli, akıllı prompt asistanı ve otomatik açı yönetimi ile karakter tutarlılığını koruyarak görsel dönüşümleri gerçekleştirir.
 
 ### Temel Özellikler
 
-- ✅ **Çoklu AI Model Desteği**: Seedream, Nano Banana, Flux 2 Multi Angles
-- ✅ **Akıllı Açı Yönetimi**: 8 farklı açı (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°)
-- ✅ **Otomatik Prompt Üretimi**: Açı değişimleri için otomatik prompt oluşturma
-- ✅ **Akıllı Asistan**: OpenRouter tabanlı görsel analiz ve düzeltme önerileri
-- ✅ **Pipeline Yönetimi**: Hiyerarşik görsel üretim zinciri takibi
-- ✅ **Maliyet Hesaplama**: Gerçek zamanlı üretim maliyeti gösterimi
+- **Çoklu AI Model Desteği**: Seedream, Nano Banana, Flux 2 Multi Angles
+- **Akıllı Açı Yönetimi**: 8 farklı açı (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°)
+- **Otomatik Prompt Üretimi**: Açı değişimleri için otomatik prompt oluşturma
+- **Akıllı Asistan**: OpenRouter tabanlı görsel analiz ve düzeltme önerileri
+- **Pipeline Yönetimi**: Hiyerarşik görsel üretim zinciri takibi
+- **Maliyet Hesaplama**: Gerçek zamanlı üretim maliyeti gösterimi
 
 ---
 
-## 🚀 Başlangıç
+## Başlangıç
 
 ### Giriş Yapma
 
@@ -46,7 +46,7 @@ ImageFlow, AI modelleri kullanarak görsellerinizi farklı açılardan üretmeni
 
 ---
 
-## 📤 Görsel Yükleme
+## Görsel Yükleme
 
 ### Desteklenen Formatlar
 
@@ -74,17 +74,17 @@ Yüklenen her görsel için otomatik olarak şu bilgiler saklanır:
 
 ---
 
-## 🤖 AI Modelleri ve Seçim Kriterleri
+## AI Modelleri ve Seçim Kriterleri
 
 Sistem üç farklı AI modeli sunar. Her modelin kendine özgü güçlü yönleri vardır:
 
-### 1. **Seedream** 🎨
+### 1. **Seedream**
 
 **Güçlü Yönleri:**
-- ✅ **Çözünürlük**: Yüksek
-- ⚖️ **Açı Dönüşümü**: Orta
-- ⚠️ **Karakter Tutarlılığı**: Düşük
-- 💰 **Maliyet**: Düşük ($0.03 - ₺1.28)
+- **Çözünürlük**: Yüksek
+- **Açı Dönüşümü**: Orta
+- **Karakter Tutarlılığı**: Düşük
+- **Maliyet**: Düşük ($0.03 - ₺1.28)
 
 **Ne Zaman Kullanılır?**
 - Yüksek çözünürlüklü görseller gerektiğinde
@@ -99,12 +99,12 @@ Sistem üç farklı AI modeli sunar. Her modelin kendine özgü güçlü yönler
 
 ---
 
-### 2. **Nano Banana** 🍌 (Önerilen)
+### 2. **Nano Banana** (Önerilen)
 
 **Güçlü Yönleri:**
-- ⚖️ **Açı Dönüşümü**: Orta
-- ✅ **Karakter Tutarlılığı**: Yüksek
-- ⚖️ **Maliyet**: Orta ($0.04 - ₺1.70)
+- **Açı Dönüşümü**: Orta
+- **Karakter Tutarlılığı**: Yüksek
+- **Maliyet**: Orta ($0.04 - ₺1.70)
 
 **Ne Zaman Kullanılır?**
 - Karakter tutarlılığı en önemli kriter olduğunda
@@ -119,12 +119,12 @@ Sistem üç farklı AI modeli sunar. Her modelin kendine özgü güçlü yönler
 
 ---
 
-### 3. **Flux 2 Multi Angles** ⚡
+### 3. **Flux 2 Multi Angles**
 
 **Güçlü Yönleri:**
-- ✅ **Açı Dönüşümü**: Yüksek
-- ⚖️ **Karakter Tutarlılığı**: Orta
-- 📊 **Maliyet**: Değişken (MP × $0.021)
+- **Açı Dönüşümü**: Yüksek
+- **Karakter Tutarlılığı**: Orta
+- **Maliyet**: Değişken (MP × $0.021)
 
 **Ne Zaman Kullanılır?**
 - Açı dönüşümü en önemli kriter olduğunda
@@ -157,7 +157,7 @@ Maliyet = (Genişlik × Yükseklik / 1.000.000) × $0.021
 
 ---
 
-## 🔄 Açı Değişimi İşlemi
+## Açı Değişimi İşlemi
 
 ### Desteklenen Açılar
 
@@ -219,7 +219,7 @@ Sistem 8 standart açıyı destekler:
 
 ---
 
-## 🎯 Kaynak Görsel ile İşlem
+## Kaynak Görsel ile İşlem
 
 ### Kaynak Görsel Nedir?
 
@@ -260,7 +260,7 @@ Daha önce üretilmiş bir görseli, yeni işlemler için **kaynak** olarak kull
 
 ---
 
-## 🧠 Akıllı Prompt Asistanı
+## Akıllı Prompt Asistanı
 
 ### Asistan Nedir?
 
@@ -335,15 +335,15 @@ Asistan Önerisi: "Apply cinematic lighting to the face with subtle rim light, a
 
 ### Asistan Avantajları
 
-✅ **Otomatik Analiz**: Görselleri manuel incelemenize gerek yok
-✅ **Hassas Düzeltmeler**: Somut, uygulanabilir öneriler
-✅ **Açı Kontrolü**: Hedef açıya ulaşılıp ulaşılmadığını otomatik kontrol
-✅ **Zaman Tasarrufu**: Prompt yazma süresini kısaltır
-✅ **Profesyonel Sonuçlar**: AI destekli, optimize edilmiş prompt'lar
+- **Otomatik Analiz**: Görselleri manuel incelemenize gerek yok
+- **Hassas Düzeltmeler**: Somut, uygulanabilir öneriler
+- **Açı Kontrolü**: Hedef açıya ulaşılıp ulaşılmadığını otomatik kontrol
+- **Zaman Tasarrufu**: Prompt yazma süresini kısaltır
+- **Profesyonel Sonuçlar**: AI destekli, optimize edilmiş prompt'lar
 
 ---
 
-## 📊 Sonuçları Görüntüleme ve Yönetme
+## Sonuçları Görüntüleme ve Yönetme
 
 ### Listem Bölümü
 
@@ -377,7 +377,7 @@ Her görsel için şu işlemleri yapabilirsiniz:
 
 ---
 
-## 🔗 Üretim Hattı (Pipeline)
+## Üretim Hattı (Pipeline)
 
 ### Pipeline Nedir?
 
@@ -411,7 +411,7 @@ Ana Referans (Orijinal)
 
 ---
 
-## 💰 Maliyet Bilgileri
+## Maliyet Bilgileri
 
 ### Maliyet Gösterimi
 
@@ -446,7 +446,7 @@ TL Karşılığı = Dolar × 42.5
 
 ---
 
-## 🎨 İpuçları ve En İyi Uygulamalar
+## İpuçları ve En İyi Uygulamalar
 
 ### Görsel Kalitesi
 
@@ -501,7 +501,7 @@ Evet, Flux 2 için görsel çözünürlüğüne göre gerçek zamanlı hesaplan�
 
 ---
 
-## 🔧 Teknik Detaylar
+## Teknik Detaylar
 
 ### Desteklenen Formatlar
 - Giriş: JPEG, PNG, WebP, GIF
@@ -523,7 +523,7 @@ Evet, Flux 2 için görsel çözünürlüğüne göre gerçek zamanlı hesaplan�
 
 ---
 
-## 📝 Notlar
+## Notlar
 
 - Bu kılavuz sürekli güncellenmektedir
 - Yeni özellikler eklendikçe kılavuz güncellenecektir

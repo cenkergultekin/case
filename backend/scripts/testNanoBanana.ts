@@ -65,14 +65,14 @@ async function main() {
     throw new Error(`Image file not found at ${imagePath}`);
   }
 
-  console.log('🖼️  Using image:', imagePath);
+  console.log('Using image:', imagePath);
 
   const buffer = await fs.promises.readFile(imagePath);
   const mimeType = getMimeType(imagePath);
   const imageUrl = await uploadToFal(buffer, mimeType);
 
-  console.log('☁️  Uploaded to fal storage:', imageUrl);
-  console.log('🚀 Sending nano-banana test request...');
+  console.log('Uploaded to fal storage:', imageUrl);
+  console.log('Sending nano-banana test request...');
 
   const result = await fal.subscribe('fal-ai/nano-banana/edit', {
     input: {
@@ -82,7 +82,7 @@ async function main() {
     }
   });
 
-  console.log('✅ Request completed.');
+  console.log('Request completed.');
   console.log('Request ID:', result.requestId);
 
   const images = result.data?.images?.map((img: any) => img.url) || [];
@@ -97,7 +97,7 @@ async function main() {
 }
 
 main().catch(error => {
-  console.error('❌ Nano-banana test failed:', error);
+  console.error('Nano-banana test failed:', error);
   process.exit(1);
 });
 

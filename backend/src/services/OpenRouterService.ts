@@ -58,17 +58,6 @@ export class OpenRouterService {
     const userContent = this.buildUserContent(options);
     const startedAt = Date.now();
 
-    // Log request details (without sensitive data)
-    console.log(`🚀 OpenRouter request:`, {
-      url: this.apiUrl,
-      model: this.model,
-      hasApiKey: !!this.apiKey,
-      originalImageSize: options.originalImageData.length,
-      referenceImageSize: options.referenceImageData.length,
-      targetAngles: options.targetAngles,
-      hasUserNotes: !!options.userNotes
-    });
-
     // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
@@ -99,7 +88,7 @@ export class OpenRouterService {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error(`❌ OpenRouter API error:`, {
+        console.error('OpenRouter API error:', {
           status: response.status,
           statusText: response.statusText,
           error: errorText.substring(0, 200)
@@ -114,27 +103,13 @@ export class OpenRouterService {
       const promptText = this.extractText(data?.choices?.[0]?.message?.content);
 
       if (!promptText) {
-        console.error(`❌ OpenRouter returned empty response:`, data);
+        console.error('OpenRouter returned empty response:', data);
         throw createError('OpenRouter boş bir yanıt döndürdü', 502);
       }
 
       const latency = Date.now() - startedAt;
       const usage = data?.usage || {};
       const reasoningTokens = (data?.usage as any)?.completion_tokens_details?.reasoning_tokens || 0;
-      
-      console.log(`✅ OpenRouter success:`, {
-        latencyMs: latency,
-        latencySeconds: (latency / 1000).toFixed(2),
-        promptLength: promptText.length,
-        model: data?.model || this.model,
-        tokens: {
-          prompt: usage.prompt_tokens || 0,
-          completion: usage.completion_tokens || 0,
-          total: usage.total_tokens || 0,
-          reasoning: reasoningTokens
-        },
-        hasReasoning: reasoningTokens > 0
-      });
 
       return {
         prompt: promptText.trim(),
@@ -166,7 +141,7 @@ export class OpenRouterService {
       }
 
       // Unknown error
-      console.error(`❌ OpenRouter unknown error:`, error);
+      console.error('OpenRouter unknown error:', error);
       throw createError(`OpenRouter isteği başarısız oldu: ${error.message || 'Bilinmeyen hata'}`, 500);
     }
   }

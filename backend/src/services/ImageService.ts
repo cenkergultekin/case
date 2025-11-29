@@ -93,21 +93,12 @@ export class ImageService {
         // Find the selected processed version
         let processedVersion = image.processedVersions?.find(pv => pv.id === sourceProcessedVersionId);
         if (!processedVersion) {
-          // Log for debugging
-          console.error(`❌ Processed version not found:`, {
-            sourceProcessedVersionId,
-            availableVersions: image.processedVersions?.map(v => v.id) || [],
-            totalVersions: image.processedVersions?.length || 0
-          });
           throw createError(`Processed version not found: ${sourceProcessedVersionId}`, 404);
         }
         
         // Support nested sources: if the selected version has its own source, we can use it
         // But for now, we use the selected version's file directly
         // The selected version already contains the result of processing from its source
-        console.log(`📦 Using source version: ${processedVersion.id}`);
-        console.log(`   - Source version's source: ${processedVersion.sourceProcessedVersionId || processedVersion.sourceImageId || 'original'}`);
-        
         imageData = await this.storageService.getFile(processedVersion.filename);
         sourceFilename = processedVersion.filename;
       } else {
@@ -119,16 +110,11 @@ export class ImageService {
       let finalParameters = { ...parameters };
       let processedAngle: number | undefined = undefined;
       
-      console.log(`🔍 ImageService.processWithFalAI - angles:`, angles, `customPrompt:`, customPrompt ? `${customPrompt.substring(0, 50)}...` : '(none)');
-      
       if (angles && angles.length > 0) {
         // Process each angle - for now, process first angle (batch processing can be handled separately)
         const angle = angles[0];
         processedAngle = angle;
         const finalPrompt = this.promptService.generateFinalPrompt(angle, customPrompt);
-        console.log(`📝 Final prompt generated for ${angle}°:`, finalPrompt);
-        console.log(`   - Rotation prompt: ${this.promptService.generateRotationPrompt(angle)}`);
-        console.log(`   - Custom prompt: ${customPrompt || '(none)'}`);
         finalParameters = {
           ...parameters,
           prompt: finalPrompt,
@@ -137,7 +123,6 @@ export class ImageService {
       } else if (customPrompt && customPrompt.trim()) {
         // If only custom prompt provided without angles, use it directly
         // This happens when user wants to edit without changing angle
-        console.log(`📝 Using custom prompt only (no angle change):`, customPrompt);
         finalParameters = {
           ...parameters,
           prompt: customPrompt.trim()
@@ -298,7 +283,7 @@ export class ImageService {
         totalPages
       };
     } catch (error: any) {
-      console.error('❌ Error in listImages:', error);
+      console.error('Error in listImages:', error);
       // Re-throw with more context
       if (error.message?.includes('index')) {
         throw createError('Firestore index required. Please create composite index: pipelines collection, fields: userId (Ascending), uploadedAt (Descending)', 500);

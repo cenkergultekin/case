@@ -378,10 +378,10 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
     });
   }
 
-  // Calculate active processing count and progress
-  const activeProcessing = Array.from(processingStates.values()).filter(
-    p => p.sourceId === image.id
-  );
+  // Calculate active processing count and progress (for this base image)
+  // processingStates is kept in sync with processingImages and cleared when
+  // corresponding processed versions arrive, so it reliably reflects "live" jobs.
+  const activeProcessing = Array.from(processingStates.values());
   const activeProcessingCount = activeProcessing.length;
   
   // Calculate average progress for all active processing (15 seconds = 100%)
