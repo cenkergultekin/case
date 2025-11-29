@@ -117,6 +117,21 @@ export const imageAPI = {
     return response.data;
   },
 
+  // Generate smart prompt via OpenRouter assistant
+  generateSmartPrompt: async (
+    imageId: string,
+    payload: {
+      sourceProcessedVersionId: string;
+      angles?: number[];
+      userNotes?: string;
+    }
+  ) => {
+    const response = await api.post(`/images/${imageId}/prompt-assistant`, payload, {
+      timeout: 150000
+    });
+    return response.data;
+  },
+
   // List processed images
   listProcessedImages: async (params?: { 
     page?: number; 

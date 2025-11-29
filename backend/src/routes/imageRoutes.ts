@@ -2,11 +2,13 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { ImageService } from '../services/ImageService';
+import { PromptAssistantService } from '../services/PromptAssistantService';
 import { validateImageUpload } from '../validators/imageValidator';
 import { firebaseAuthMiddleware } from '../middleware/firebaseAuth';
 
 const router = Router();
 const imageService = new ImageService();
+const promptAssistantService = new PromptAssistantService();
 
 const requireUserId = (req: Request) => {
   if (!req.user?.uid) {
@@ -112,6 +114,40 @@ router.post('/process/:imageId',
       success: true,
       message: 'Image processed successfully',
       data: result
+    });
+  })
+);
+
+// Smart prompt assistant
+router.post('/:imageId/prompt-assistant',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
+    const { imageId } = req.params;
+    const { sourceProcessedVersionId, angles, userNotes } = req.body;
+
+    if (!sourceProcessedVersionId) {
+      throw createError('Kaynak alınacak işlenmiş görsel ID\'si gereklidir', 400);
+    }
+
+    const normalizedAngles = Array.isArray(angles)
+      ? angles
+          .map((angle: unknown) => Number(angle))
+          .filter((angle: number) => Number.isFinite(angle))
+      : undefined;
+
+    const assistantResponse = await promptAssistantService.generatePrompt(
+      userId,
+      imageId,
+      sourceProcessedVersionId,
+      {
+        targetAngles: normalizedAngles,
+        userNotes: typeof userNotes === 'string' ? userNotes : undefined
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      data: assistantResponse
     });
   })
 );

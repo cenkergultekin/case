@@ -28,7 +28,7 @@ interface ImageUploadProps {
 export function ImageUpload({ 
   onUploadComplete, 
   multiple = false, 
-  maxFiles = 5,
+  maxFiles = 1,
   className 
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
@@ -40,15 +40,8 @@ export function ImageUpload({
     setError(null);
 
     try {
-      let result;
-      
-      if (multiple && acceptedFiles.length > 1) {
-        // Upload multiple files
-        result = await imageAPI.uploadMultipleImages(acceptedFiles);
-      } else {
-        // Upload single file
-        result = await imageAPI.uploadImage(acceptedFiles[0]);
-      }
+      // Always upload single file
+      const result = await imageAPI.uploadImage(acceptedFiles[0]);
 
       const newImages = Array.isArray(result.data) ? result.data : [result.data];
       setUploadedImages(prev => [...prev, ...newImages]);
@@ -64,10 +57,11 @@ export function ImageUpload({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.webp', '.gif']
+      'image/jpeg': ['.jpeg', '.jpg'],
+      'image/png': ['.png']
     },
-    multiple,
-    maxFiles: multiple ? maxFiles : 1,
+    multiple: false,
+    maxFiles: 1,
     maxSize: 10 * 1024 * 1024, // 10MB
   });
 
@@ -123,14 +117,11 @@ export function ImageUpload({
                   {isDragActive ? 'Görselleri buraya bırakın' : 'Görselleri buraya sürükleyip bırakın'}
                 </p>
                 <p className="text-sm text-gray-600 mb-3">
-                  {multiple 
-                    ? `En fazla ${maxFiles} görsel desteklenir`
-                    : 'Tek görsel yükleme'
-                  }
+                  Tek görsel yükleme
                 </p>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg glass-subtle border border-white/30 text-xs text-gray-700 font-medium shadow-minimal">
                   <ImageIcon className="h-3.5 w-3.5" />
-                  <span>JPG, PNG, WebP, GIF • Max 10MB</span>
+                  <span>JPG, PNG • Max 10MB</span>
                 </div>
               </div>
             </div>

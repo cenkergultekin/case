@@ -4,12 +4,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ImageUpload } from '@/components/ImageUpload';
 import { ImageProcessor } from '@/components/ImageProcessor';
 import { ProductionPipeline } from '@/components/ProductionPipeline';
+import { LandingPage } from '@/components/LandingPage';
 import { Button } from '@/components/ui/Button';
 import { AuthForm } from '@/components/AuthForm';
 import { imageAPI, getImageUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Image as ImageIcon, Upload, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import { getFirebaseAuth } from '@/lib/firebaseClient';
 
 interface ImageData {
@@ -19,6 +21,8 @@ interface ImageData {
   size: number;
   mimetype: string;
   uploadedAt: string;
+  width?: number;
+  height?: number;
   processedVersions?: any[];
 }
 
@@ -35,6 +39,7 @@ export default function Home() {
   const [showLibrary, setShowLibrary] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('upload');
   const [processingImages, setProcessingImages] = useState<Array<{ id: string; startTime: number; angle?: number; sourceId: string }>>([]);
+  const [showLanding, setShowLanding] = useState<boolean | null>(null); // null = auto-detect based on auth
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
@@ -82,16 +87,25 @@ export default function Home() {
     }
   };
 
-  const handleProcessingStart = (processingInfo: { angles: number[]; sourceId?: string }) => {
-    // Always use the original image id as sourceId for the main pipeline
-    // This ensures processing placeholders show up in the original image pipeline
+  const handleProcessingStart = (processingInfo: { angles: number[]; sourceId?: string; processingIds?: string[] }) => {
+    // Use the provided sourceId (which could be a processed version ID or original image ID)
+    // For source-based processing, sourceId will be the processed version ID
+    // For original image processing, sourceId will be the original image ID
+    // Use provided processingIds if available, otherwise generate them
+    const ids = processingInfo.processingIds || processingInfo.angles.map((_, index) => `processing-${Date.now()}-${index}`);
     const newProcessingImages = processingInfo.angles.map((angle, index) => ({
-      id: `processing-${Date.now()}-${index}`,
+      id: ids[index],
       startTime: Date.now(),
       angle,
-      sourceId: selectedImage?.id || '' // Always use original image id for main pipeline
+      sourceId: processingInfo.sourceId || selectedImage?.id || '', // Use provided sourceId
+      sourceVersionId: processingInfo.sourceId !== selectedImage?.id ? processingInfo.sourceId : undefined // Track if it's a version ID
     }));
     setProcessingImages(prev => [...prev, ...newProcessingImages]);
+  };
+
+  const handleProcessingError = (processingIds: string[]) => {
+    // Remove failed processing images
+    setProcessingImages(prev => prev.filter(p => !processingIds.includes(p.id)));
   };
 
   const handleProcessComplete = (processedVersion: any) => {
@@ -207,8 +221,34 @@ export default function Home() {
     );
   }
 
+  // Show landing page if not authenticated or if explicitly requested
   if (!currentUser) {
-    return <AuthForm />;
+    // For unauthenticated users, show landing page by default
+    // If showLanding is explicitly false, show auth form
+    if (showLanding === false) {
+      return <AuthForm />;
+    }
+    // Default: show landing page
+    return (
+      <LandingPage 
+        onGetStarted={() => {
+          // When "Hemen Başla" is clicked, show auth form
+          setShowLanding(false);
+        }} 
+      />
+    );
+  }
+
+  // Show landing page if authenticated user explicitly requests it
+  if (showLanding === true && currentUser) {
+    return (
+      <LandingPage 
+        onGetStarted={() => {
+          // When "Hemen Başla" is clicked, go back to main app
+          setShowLanding(null);
+        }} 
+      />
+    );
   }
 
   return (
@@ -218,9 +258,13 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="px-5 py-2.5 bg-white rounded-xl shadow-card border border-gray-200/50">
+              <button
+                onClick={() => setShowLanding(true)}
+                className="px-5 py-2.5 bg-white rounded-xl shadow-card border border-gray-200/50 hover:shadow-card-hover transition-smooth cursor-pointer"
+                title="Ana Sayfaya Dön"
+              >
                 <h1 className="text-2xl font-bold text-gradient-purple">ImageFlow</h1>
-              </div>
+              </button>
             </div>
             <div className="flex items-center gap-3">
               <p className="text-sm text-gray-600 font-medium">AI Destekli Görsel İşleme</p>
@@ -328,6 +372,9 @@ export default function Home() {
                               <div className="flex items-center justify-between mt-1">
                                 <span className="text-[10px] text-gray-600">
                                   {(img.size / (1024 * 1024)).toFixed(1)} MB
+                                  {img.width && img.height
+                                    ? ` / ${((img.width * img.height) / 1_000_000).toFixed(1)} MP`
+                                    : ''}
                                 </span>
                                 {img.processedVersions && img.processedVersions.length > 0 && (
                                   <span className="glass-subtle border border-primary/20 text-primary px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-minimal">
@@ -349,8 +396,6 @@ export default function Home() {
             <div className="flex-1">
               <ImageUpload
                 onUploadComplete={handleUploadComplete}
-                multiple={true}
-                maxFiles={5}
               />
             </div>
           </div>
@@ -435,6 +480,9 @@ export default function Home() {
                             <div className="flex items-center justify-between mt-1">
                               <span className="text-[10px] text-gray-600">
                                 {(img.size / (1024 * 1024)).toFixed(1)} MB
+                                {img.width && img.height
+                                  ? ` / ${((img.width * img.height) / 1_000_000).toFixed(1)} MP`
+                                  : ''}
                               </span>
                               {img.processedVersions && img.processedVersions.length > 0 && (
                                 <span className="glass-subtle border border-primary/20 text-primary px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-minimal">
@@ -460,6 +508,7 @@ export default function Home() {
                 onDelete={handleImageDelete}
                 onViewPipeline={() => setViewMode('pipeline')}
                 onProcessingStart={handleProcessingStart}
+                onProcessingError={handleProcessingError}
                 onSourceVersionChange={(versionId) => setSelectedSourceVersionId(versionId)}
                 {...(selectedSourceVersionId && { initialSelectedSourceVersion: selectedSourceVersionId })}
               />

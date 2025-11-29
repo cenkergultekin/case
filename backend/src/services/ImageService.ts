@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { imageSize } from 'image-size';
 import { FalAIService } from './FalAIService';
 import { FileStorageService } from './FileStorageService';
 import { FirebasePipelineRepository } from './FirebasePipelineRepository';
@@ -89,10 +90,24 @@ export class ImageService {
       let sourceFilename: string;
 
       if (sourceProcessedVersionId) {
-        const processedVersion = image.processedVersions?.find(pv => pv.id === sourceProcessedVersionId);
+        // Find the selected processed version
+        let processedVersion = image.processedVersions?.find(pv => pv.id === sourceProcessedVersionId);
         if (!processedVersion) {
-          throw createError('Processed version not found', 404);
+          // Log for debugging
+          console.error(`❌ Processed version not found:`, {
+            sourceProcessedVersionId,
+            availableVersions: image.processedVersions?.map(v => v.id) || [],
+            totalVersions: image.processedVersions?.length || 0
+          });
+          throw createError(`Processed version not found: ${sourceProcessedVersionId}`, 404);
         }
+        
+        // Support nested sources: if the selected version has its own source, we can use it
+        // But for now, we use the selected version's file directly
+        // The selected version already contains the result of processing from its source
+        console.log(`📦 Using source version: ${processedVersion.id}`);
+        console.log(`   - Source version's source: ${processedVersion.sourceProcessedVersionId || processedVersion.sourceImageId || 'original'}`);
+        
         imageData = await this.storageService.getFile(processedVersion.filename);
         sourceFilename = processedVersion.filename;
       } else {
@@ -104,23 +119,32 @@ export class ImageService {
       let finalParameters = { ...parameters };
       let processedAngle: number | undefined = undefined;
       
+      console.log(`🔍 ImageService.processWithFalAI - angles:`, angles, `customPrompt:`, customPrompt ? `${customPrompt.substring(0, 50)}...` : '(none)');
+      
       if (angles && angles.length > 0) {
         // Process each angle - for now, process first angle (batch processing can be handled separately)
         const angle = angles[0];
         processedAngle = angle;
         const finalPrompt = this.promptService.generateFinalPrompt(angle, customPrompt);
+        console.log(`📝 Final prompt generated for ${angle}°:`, finalPrompt);
+        console.log(`   - Rotation prompt: ${this.promptService.generateRotationPrompt(angle)}`);
+        console.log(`   - Custom prompt: ${customPrompt || '(none)'}`);
         finalParameters = {
           ...parameters,
           prompt: finalPrompt,
           angle: angle // Store angle in parameters for easy retrieval
         };
       } else if (customPrompt && customPrompt.trim()) {
-        // If only custom prompt provided without angles, append to existing prompt
-        const existingPrompt = parameters.prompt || '';
+        // If only custom prompt provided without angles, use it directly
+        // This happens when user wants to edit without changing angle
+        console.log(`📝 Using custom prompt only (no angle change):`, customPrompt);
         finalParameters = {
           ...parameters,
-          prompt: existingPrompt ? `${existingPrompt}, ${customPrompt.trim()}` : customPrompt.trim()
+          prompt: customPrompt.trim()
         };
+      } else {
+        // No angles and no custom prompt - this should not happen but log it
+        console.warn(`⚠️ No angles and no custom prompt provided!`);
       }
 
       const processedResult = await this.falAIService.processImage(imageData, operation, finalParameters);
@@ -172,6 +196,8 @@ export class ImageService {
         return 'seedream';
       case 'nano-banana-edit':
         return 'nano-banana';
+      case 'flux-multi-angles':
+        return 'flux-2-lora-multi-angles';
       default:
         return operation.split('-')[0] || 'unknown';
     }
@@ -376,6 +402,17 @@ export class ImageService {
   }
 
   private async getImageDimensions(buffer: Buffer): Promise<{ width: number, height: number }> {
-    return { width: 0, height: 0 };
+    try {
+      const result = imageSize(buffer);
+      const width = result.width || 0;
+      const height = result.height || 0;
+      if (!width || !height) {
+        return { width: 0, height: 0 };
+      }
+      return { width, height };
+    } catch (error) {
+      console.error('Failed to read image dimensions:', error);
+      return { width: 0, height: 0 };
+    }
   }
 }

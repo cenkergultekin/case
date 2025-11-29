@@ -16,6 +16,10 @@ FAL_SUBSCRIBER_KEY=your_fal_ai_key
 BACKEND_PORT=4000
 FRONTEND_PORT=3000
 FRONTEND_URL=http://localhost:3000
+OPENROUTER_API_KEY=your_openrouter_key
+OPENROUTER_MODEL=meta-llama/llama-3.2-90b-vision-instruct  # Smart assistant model
+PROMPT_ASSISTANT_SYSTEM_PROMPT="Custom system prompt for the smart assistant"
+PROMPT_ASSISTANT_EMBEDDED_PROMPT="Additional context appended to each request"
 ```
 
 ### Firebase (Backend / Admin SDK)

@@ -397,4 +397,20 @@
       background-position: 200% 0;
     }
   }
+
+  /* Placeholder Pulse Animation */
+  @keyframes placeholder-pulse {
+    0%, 100% {
+      opacity: 0.4;
+      filter: blur(8px);
+    }
+    50% {
+      opacity: 0.6;
+      filter: blur(6px);
+    }
+  }
+
+  .animate-placeholder-pulse {
+    animation: placeholder-pulse 2s ease-in-out infinite;
+  }
 }

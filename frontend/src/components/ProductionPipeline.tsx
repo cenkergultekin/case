@@ -35,6 +35,7 @@ interface ProcessingImage {
   startTime: number;
   angle?: number;
   sourceId: string;
+  sourceVersionId?: string; // Optional: ID of the processed version used as source
 }
 
 interface ProductionPipelineProps {
@@ -57,12 +58,21 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
   const [pendingDeleteVersion, setPendingDeleteVersion] = useState<{ imageId: string; versionId: string } | null>(null);
   const [newVersionTimestamps, setNewVersionTimestamps] = useState<Map<string, number>>(new Map());
   const previousProcessedVersionsRef = useRef<Set<string>>(new Set());
+  const isInitialMountRef = useRef<boolean>(true);
   
   // Track processing images and remove them when they complete
   useEffect(() => {
     const currentVersions = image.processedVersions || [];
     const currentVersionIds = new Set(currentVersions.map(v => v.id));
     const previousVersionIds = previousProcessedVersionsRef.current;
+    
+    // On initial mount, mark all existing versions as "seen" to prevent them from being marked as "new"
+    if (isInitialMountRef.current) {
+      currentVersionIds.forEach(id => previousVersionIds.add(id));
+      previousProcessedVersionsRef.current = previousVersionIds;
+      isInitialMountRef.current = false;
+      return; // Don't process on initial mount
+    }
     
     // Find newly completed images by comparing with previous versions
     const newlyCompleted = new Set<string>();
@@ -140,12 +150,12 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
         }, 15000);
       });
       
-      // Show completion notification
+      // Show completion notification with correct count
       setCompletionNotification({ count: newlyCompleted.size, timestamp: Date.now() });
-      // Clear notification after 8 seconds (longer visibility)
+      // Clear notification after 5 seconds
       setTimeout(() => {
         setCompletionNotification(null);
-      }, 8000);
+      }, 5000);
       // Clear the fade-in state after animation completes
       setTimeout(() => {
         setNewlyCompletedImages(prev => {
@@ -171,9 +181,16 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
       
       // Add new processing images from prop
       processingImages.forEach(processing => {
-        // Only add if sourceId matches the current image (for main pipeline)
-        if (processing.sourceId !== image.id) {
-          return; // Skip if not for this image
+        // Add processing if:
+        // 1. It's for the original image (sourceId === image.id), OR
+        // 2. It's for a processed version of this image (sourceVersionId exists and matches a version)
+        const isForOriginalImage = processing.sourceId === image.id;
+        const isForProcessedVersion = processing.sourceVersionId && 
+          currentVersions.some(v => v.id === processing.sourceVersionId);
+        
+        // Skip if not related to this image at all
+        if (!isForOriginalImage && !isForProcessedVersion) {
+          return;
         }
         
         // Only add if not already completed
@@ -182,7 +199,10 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
           const vAngle = v.parameters?.angle !== undefined ? v.parameters.angle : null;
           
           // Match by source and angle (if angle is available)
-          const sourceMatches = vSourceId === processing.sourceId || vSourceId === image.id;
+          // For processed version sources, match by sourceVersionId
+          const sourceMatches = processing.sourceVersionId 
+            ? vSourceId === processing.sourceVersionId || v.sourceProcessedVersionId === processing.sourceVersionId
+            : vSourceId === processing.sourceId || vSourceId === image.id;
           const angleMatches = vAngle === null || processing.angle === vAngle || processing.angle === undefined;
           return sourceMatches && angleMatches;
         });
@@ -568,7 +588,9 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
               Görsel üretildi!
             </p>
             <p className="text-sm text-green-700 mt-0.5">
-              {completionNotification.count} görsel üretim hattına eklendi
+              {completionNotification.count === 1 
+                ? '1 adet sunuldu' 
+                : `${completionNotification.count} adet sunuldu`}
             </p>
           </div>
         </div>
@@ -707,8 +729,10 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                   minute: '2-digit'
                 });
                 
-                // Get file size (we'll need to estimate or fetch it)
-                const estimatedSize = version.filename ? '~2.5 MB' : 'Bilinmiyor';
+                // Get file size from metadata if available
+                const estimatedSize = typeof version.size === 'number'
+                  ? formatFileSize(version.size)
+                  : 'Boyut bilgisi yok';
 
                 const isDeleting = deletingVersions.has(version.id);
                 const isNew = newVersionTimestamps.has(version.id);
@@ -786,8 +810,8 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 capitalize">
-                          {version.operation.replace(/-/g, ' ')}
+                        <span className="text-xs text-gray-500">
+                          {formattedDate}
                         </span>
                         {onDeleteVersion && (
                           <button
@@ -1009,9 +1033,9 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
 
                     {/* Processed Versions - Horizontal Grid */}
                     <div className="flex items-start gap-2 sm:gap-3 md:gap-4 flex-1 overflow-x-auto overflow-y-visible pb-6 pt-3 px-3 w-full min-w-0">
-                      {/* Processing Placeholders */}
+                      {/* Processing Placeholders - Original image only */}
                       {Array.from(processingStates.values())
-                        .filter(processing => processing.sourceId === image.id)
+                        .filter(processing => processing.sourceId === image.id && !processing.sourceVersionId)
                         .map((processing) => {
                           const elapsedSeconds = Math.floor((Date.now() - processing.startTime) / 1000);
                           const showAlmostThere = elapsedSeconds >= 10;
@@ -1022,7 +1046,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                               key={`processing-${processing.id}`}
                               className="group relative flex-shrink-0 p-1"
                             >
-                              <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 rounded-xl overflow-hidden bg-gray-100 border-2 border-gray-300 shadow-card relative">
+                              <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 rounded-xl overflow-hidden bg-gray-100 border-2 border-gray-300 shadow-card relative animate-placeholder-pulse">
                                 {/* Blurred Background with Source Image */}
                                 <div className="absolute inset-0 blur-md opacity-50">
                                   <img
@@ -1060,11 +1084,6 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
       {pipelines.map((pipeline, pipelineIndex) => {
                 const indentLevel = Math.min(pipeline.level, 4);
                 const indentPx = pipeline.level === 0 ? 0 : 16 + indentLevel * 12;
-                const generationLabel = (() => {
-                  if (pipeline.level === 0) return 'Baba';
-                  if (pipeline.level === 1) return 'Evlat';
-                  return 'Torun';
-                })();
                 return (
                   <div
                     key={pipelineIndex}
@@ -1086,9 +1105,6 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                         )}
                       >
                         {pipeline.sourceType === 'original' ? 'Ana Referans' : 'Kaynak Referans'}
-                      </span>
-                      <span className="text-[11px] font-semibold text-gray-500">
-                        {generationLabel}{pipeline.level === 0 ? '' : ` • Seviye ${pipeline.level + 1}`}
                       </span>
                     </div>
 
@@ -1139,6 +1155,9 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                         <div className="flex flex-wrap gap-3 md:gap-4 w-full">
                       {/* Processed Images First */}
                       {pipeline.processed.map((version, versionIndex) => {
+                        // Check if there are processing placeholders for this version
+                        const versionProcessing = Array.from(processingStates.values())
+                          .filter(p => p.sourceVersionId === version.id);
                         // Extract angle from parameters.angle first, then from prompt
                         const extractAngle = (params: Record<string, any>): string | null => {
                           // First, check if angle is directly stored in parameters
@@ -1170,11 +1189,11 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                         return (
                           <div
                             key={version.id}
-                            className="group relative flex-shrink-0 p-1 basis-[46%] sm:basis-[30%] md:basis-[23%] lg:basis-[18%] min-w-[120px]"
+                            className="group relative flex-shrink-0 p-1 basis-[48%] sm:basis-[32%] md:basis-[24%] lg:basis-[20%] min-w-[140px] overflow-hidden"
                           >
-                            {/* Preview - Larger Square */}
+                            {/* Preview - Taller Card */}
                             <div 
-                              className="w-full aspect-square rounded-xl overflow-visible bg-gray-50 border-2 border-gray-200 shadow-card hover:border-primary hover-lift relative cursor-pointer"
+                              className="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-50 border-2 border-gray-200 shadow-card hover:border-primary hover-lift relative cursor-pointer"
                               onClick={(e) => {
                                 // Only open preview if clicking directly on the image container, not on buttons
                                 if ((e.target as HTMLElement).closest('button')) {
@@ -1208,12 +1227,12 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                                   }}
                                 />
                               </div>
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-smooth flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
-                                <div className="flex flex-col gap-2 pointer-events-auto">
+                              <div className="absolute inset-1 bg-black/0 group-hover:bg-black/20 transition-smooth flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none rounded-xl">
+                                <div className="flex flex-col gap-1 pointer-events-auto w-full px-1">
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="bg-white hover:bg-white text-[11px] px-3 py-1.5 shadow-card"
+                                    className="bg-white hover:bg-white text-[11px] px-2 py-1 shadow-card w-full justify-center"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       const imageUrl = version.url?.includes('/api/uploads/')
@@ -1228,7 +1247,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="bg-white hover:bg-white text-[11px] px-3 py-1.5 shadow-card"
+                                    className="bg-white hover:bg-white text-[11px] px-2 py-1 shadow-card w-full justify-center"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       onSelectAsSource(version.id);
@@ -1262,12 +1281,13 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                       {/* Processing Placeholders - After processed images */}
                       {Array.from(processingStates.values())
                         .filter(processing => {
-                          // For level 0 (original), match if sourceId is the original image id
+                          // For level 0 (original), match if sourceId is the original image id and no sourceVersionId
                           if (pipeline.level === 0) {
-                            return processing.sourceId === image.id;
+                            return processing.sourceId === image.id && !processing.sourceVersionId;
                           }
-                          // For other levels, match if sourceId matches the pipeline source id
-                          return processing.sourceId === pipeline.source.id;
+                          // For other levels, match if sourceVersionId matches the pipeline source id
+                          // (processed versions are the source for next level processing)
+                          return processing.sourceVersionId === pipeline.source.id;
                         })
                         .map((processing) => {
                           const elapsedSeconds = Math.floor((Date.now() - processing.startTime) / 1000);
@@ -1277,9 +1297,9 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                           return (
                             <div
                               key={`processing-${processing.id}`}
-                              className="group relative flex-shrink-0 basis-[46%] sm:basis-[30%] md:basis-[23%] lg:basis-[18%] min-w-[120px]"
+                              className="group relative flex-shrink-0 basis-[48%] sm:basis-[32%] md:basis-[24%] lg:basis-[20%] min-w-[140px]"
                             >
-                              <div className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 border-2 border-gray-300 shadow-card relative">
+                              <div className="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 border-2 border-gray-300 shadow-card relative animate-placeholder-pulse">
                                 {/* Blurred Background with Source Image */}
                                 <div className="absolute inset-0 blur-md opacity-50">
                                   <img

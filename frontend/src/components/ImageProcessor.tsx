@@ -6,6 +6,7 @@ import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Slider } from './ui/Slider';
 import { AnglePicker } from './AnglePicker';
+import { PromptAssistant } from './PromptAssistant';
 import { imageAPI, getImageUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +30,8 @@ interface ImageData {
   size: number;
   mimetype: string;
   uploadedAt: string;
+  width?: number;
+  height?: number;
   processedVersions?: ProcessedVersion[];
 }
 
@@ -38,12 +41,15 @@ interface ImageProcessorProps {
   onDelete?: (imageId: string) => void;
   initialSelectedSourceVersion?: string;
   onViewPipeline?: () => void;
-  onProcessingStart?: (processingInfo: { angles: number[]; sourceId?: string }) => void;
+  onProcessingStart?: (processingInfo: { angles: number[]; sourceId?: string; processingIds?: string[] }) => void;
+  onProcessingError?: (processingIds: string[]) => void;
   onSourceVersionChange?: (versionId: string | null) => void;
 }
 
 // Checkpoint açıları - tüm modeller için ortak
 const CHECKPOINT_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+const SEEDREAM_COST_USD = 0.03;
+const NANO_COST_USD = 0.04;
 
 const PROCESSING_OPERATIONS = [
   {
@@ -54,7 +60,12 @@ const PROCESSING_OPERATIONS = [
     requiresPrompt: false,
     requiresAngle: true,
     parameters: {},
-    details: 'Scene composition, object addition/removal, background changes'
+    details: 'Sahne kompozisyonu, obje ekleme/çıkarma, arka plan değişimi',
+    strengths: {
+      angle: 'Orta',
+      character: 'Düşük',
+      cost: 'Düşük'
+    }
   },
   {
     id: 'nano-banana-edit',
@@ -64,18 +75,38 @@ const PROCESSING_OPERATIONS = [
     requiresPrompt: false,
     requiresAngle: true,
     parameters: {},
-    details: 'Character rotation, angle adjustments, view transformations'
+    details: 'Karakter döndürme, açı ayarı, görünüş dönüşümleri',
+    strengths: {
+      angle: 'Orta',
+      character: 'Yüksek',
+      cost: 'Orta'
+    }
+  },
+  {
+    id: 'flux-multi-angles',
+    name: 'Flux 2 Multi Angles',
+    description: 'Flux 2 LoRA modeli ile çoklu açı üretimi',
+    category: 'Edit',
+    requiresPrompt: false,
+    requiresAngle: true,
+    parameters: {},
+    details: 'Horizontal angle (derece) üzerinden farklı görüş açıları üretir',
+    strengths: {
+      angle: 'Yüksek',
+      character: 'Orta',
+      cost: 'Değişken'
+    }
   }
 ];
 
-export function ImageProcessor({ image, onProcessComplete, onDelete, initialSelectedSourceVersion, onViewPipeline, onProcessingStart, onSourceVersionChange }: ImageProcessorProps) {
+export function ImageProcessor({ image, onProcessComplete, onDelete, initialSelectedSourceVersion, onViewPipeline, onProcessingStart, onProcessingError, onSourceVersionChange }: ImageProcessorProps) {
   const [processing, setProcessing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string>('');
   const [showPromptInput, setShowPromptInput] = useState<boolean>(false);
   const [selectedOperation, setSelectedOperation] = useState<string>('');
-  const [angle, setAngle] = useState<number>(0);
-  const [selectedAngles, setSelectedAngles] = useState<number[]>([0]);
+  const [angle, setAngle] = useState<number | null>(null);
+  const [selectedAngles, setSelectedAngles] = useState<number[]>([]);
   const [selectedSourceVersion, setSelectedSourceVersion] = useState<string | null>(initialSelectedSourceVersion || null);
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
   const [currentSourceAngle, setCurrentSourceAngle] = useState<number | null>(null);
@@ -84,6 +115,19 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
   const [batchProgress, setBatchProgress] = useState<{ total: number; completed: number; current: number; progress: number } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [modalScrollPosition, setModalScrollPosition] = useState<number>(0);
+  const originalImageUrl = React.useMemo(() => getImageUrl(image.filename), [image.filename]);
+  const selectedSourceVersionData = React.useMemo(() => {
+    if (!selectedSourceVersion) return null;
+    return image.processedVersions?.find(v => v.id === selectedSourceVersion) || null;
+  }, [selectedSourceVersion, image.processedVersions]);
+  const megaPixels = React.useMemo(() => {
+    if (!image.width || !image.height) return null;
+    return (image.width * image.height) / 1_000_000;
+  }, [image.width, image.height]);
+  const fluxCost = React.useMemo(() => {
+    if (selectedOperation !== 'flux-multi-angles' || megaPixels === null) return null;
+    return megaPixels * 0.021;
+  }, [selectedOperation, megaPixels]);
 
   // Extract angle from version parameters
   const extractAngleFromVersion = (version: ProcessedVersion | undefined): number | null => {
@@ -142,12 +186,13 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
         setAngle(extractedAngle);
       } else {
         setCurrentSourceAngle(null);
-        setAngle(0);
+        setAngle(null);
       }
     } else if (showPromptInput && !selectedSourceVersion) {
-      // Original image, no current angle
+      // Original image, require manual angle selection
       setCurrentSourceAngle(null);
-      setAngle(0);
+      setAngle(null);
+      setSelectedAngles([]);
     }
   }, [showPromptInput, selectedSourceVersion, image.processedVersions]);
 
@@ -171,6 +216,8 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
       setSelectedSourceVersion(null);
       setSelectedOperation('');
       setCurrentSourceAngle(null);
+      setAngle(null);
+      setSelectedAngles([]);
     } catch (err) {
       console.error('Processing failed:', err);
       setError(err instanceof Error ? err.message : 'İşleme başarısız');
@@ -185,24 +232,26 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
       setSelectedOperation(operation.id);
       setShowPromptInput(true);
       // Angle will be set by useEffect based on source version
-      // If no source version, it will default to 0
+      // If no source version, kullanıcı manuel açı seçmelidir
     } else {
       handleProcess(operation.id, operation.parameters);
     }
   };
 
   const handlePromptSubmit = () => {
-    // Hangi görseli kullanacağımızı belirle
-    let sourceFilename = image.filename;
-    if (selectedSourceVersion) {
-      const sourceVersion = image.processedVersions?.find(v => v.id === selectedSourceVersion);
-      if (sourceVersion) {
-        sourceFilename = sourceVersion.filename;
-      }
-    }
-    
     // Eğer açı değiştirilmediyse (mevcut açıyla aynıysa), açı prompt'unu ekleme
-    const angleChanged = currentSourceAngle === null || angle !== currentSourceAngle;
+    const effectiveAngles = selectedAngles.length > 0
+      ? selectedAngles
+      : angle !== null
+        ? [angle]
+        : (selectedSourceVersion && currentSourceAngle !== null ? [currentSourceAngle] : []);
+
+    if (!selectedSourceVersion && effectiveAngles.length === 0) {
+      setError('Lütfen açı seçin');
+      return;
+    }
+
+    const angleChanged = currentSourceAngle === null || effectiveAngles.some(a => a !== currentSourceAngle);
     
     // Eğer ne açı değişti ne de prompt var, hata ver
     if (!angleChanged && !prompt.trim()) {
@@ -211,7 +260,7 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
     }
     
     // Onay modalını göster - tüm seçili açıları kaydet
-    setPendingAngles(selectedAngles.length > 0 ? selectedAngles : [angle]);
+    setPendingAngles(effectiveAngles);
     setModalScrollPosition(window.scrollY);
     setShowConfirmModal(true);
     // Modal açıldığında scroll pozisyonunu koru ama modal görünür olsun
@@ -225,8 +274,18 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
 
   const handleConfirmProcess = async () => {
     // Tüm seçili açılar için işlem yap
-    const anglesToProcess = pendingAngles.length > 0 ? pendingAngles : [angle];
-    const angleChanged = currentSourceAngle === null || !anglesToProcess.includes(currentSourceAngle || -1);
+    const anglesToProcess = pendingAngles.length > 0
+      ? pendingAngles
+      : angle !== null
+        ? [angle]
+        : (selectedSourceVersion && currentSourceAngle !== null ? [currentSourceAngle] : []);
+
+    if (!selectedSourceVersion && anglesToProcess.length === 0) {
+      setError('Lütfen açı seçin');
+      return;
+    }
+
+    const angleChanged = currentSourceAngle === null || anglesToProcess.some(a => a !== currentSourceAngle);
     
     // Eğer ne açı değişti ne de prompt var, hata ver
     if (!angleChanged && !prompt.trim()) {
@@ -239,10 +298,14 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
     setError(null);
     setProcessingStartTime(Date.now());
     
-    // Notify parent about processing start
+    // Generate processing IDs for tracking
+    const processingIds = anglesToProcess.map((_, index) => `processing-${Date.now()}-${index}`);
+    
+    // Notify parent about processing start with IDs
     onProcessingStart?.({
       angles: anglesToProcess,
-      sourceId: selectedSourceVersion || image.id
+      sourceId: selectedSourceVersion || image.id,
+      processingIds
     });
     
     // Immediately switch to pipeline view
@@ -251,6 +314,9 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
     // Batch progress tracking
     const totalAngles = anglesToProcess.length;
     setBatchProgress({ total: totalAngles, completed: 0, current: 0, progress: 0 });
+    
+    let hasError = false;
+    const failedProcessingIds: string[] = [];
     
     try {
       // Her açı için ayrı istek gönder (sıralı olarak, her biri tamamlandığında callback çağır)
@@ -267,13 +333,37 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
         const parameters = {}; // Empty parameters, backend will generate prompt from angle
         
         // Her açı için ayrı istek gönder
+        const finalPrompt = prompt.trim() || undefined;
+        if (finalPrompt) {
+          console.log(`📝 Prompt modele gönderiliyor (${angleToProcess}°):`, finalPrompt);
+        } else {
+          console.log(`⚠️ Prompt boş! Açı: ${angleToProcess}°, angleChanged: ${angleChanged}`);
+        }
+        
+        // Eğer açı değişmediyse ama prompt varsa, mevcut açıyı gönder ki backend rotation prompt + custom prompt birleştirebilsin
+        // Eğer açı değiştiyse, yeni açıyı gönder
+        // Her durumda açıyı gönder ki backend prompt'u doğru şekilde oluşturabilsin
+        const anglesToSend = [angleToProcess]; // Her zaman açıyı gönder
+        
+        // Validate selectedSourceVersion exists before sending
+        const validSourceVersion = selectedSourceVersion && image.processedVersions?.some(v => v.id === selectedSourceVersion)
+          ? selectedSourceVersion
+          : null;
+        
         const requestBody = {
           operation: selectedOperation,
           parameters,
-          angles: angleChanged ? [angleToProcess] : undefined,
-          customPrompt: prompt.trim() || undefined,
-          ...(selectedSourceVersion && { sourceProcessedVersionId: selectedSourceVersion })
+          angles: anglesToSend,
+          customPrompt: finalPrompt,
+          ...(validSourceVersion && { sourceProcessedVersionId: validSourceVersion })
         };
+        
+        console.log(`📤 Request body:`, {
+          operation: selectedOperation,
+          angles: anglesToSend,
+          customPrompt: finalPrompt ? `${finalPrompt.substring(0, 50)}...` : '(none)',
+          hasSourceVersion: !!selectedSourceVersion
+        });
         
         try {
           const imageStartTime = Date.now();
@@ -299,6 +389,8 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
           }
         } catch (err) {
           console.error(`Processing failed for angle ${angleToProcess}:`, err);
+          hasError = true;
+          failedProcessingIds.push(processingIds[i]);
           // Bir açı başarısız olsa bile diğerlerini denemeye devam et
           setError(`Açı ${angleToProcess}° için işlem başarısız: ${err instanceof Error ? err.message : 'Bilinmeyen hata'}`);
           // Update progress even on error
@@ -312,14 +404,22 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
       setSelectedSourceVersion(null);
       setSelectedOperation('');
       setCurrentSourceAngle(null);
-      setSelectedAngles([0]);
+      setAngle(null);
+      setSelectedAngles([]);
       setPendingAngles([]);
       setBatchProgress(null);
     } catch (err) {
       console.error('Processing failed:', err);
+      hasError = true;
       setError(err instanceof Error ? err.message : 'İşleme başarısız');
       setBatchProgress(null);
+      // Remove all processing states on error
+      onProcessingError?.(processingIds);
     } finally {
+      // Remove failed processing states
+      if (hasError && failedProcessingIds.length > 0) {
+        onProcessingError?.(failedProcessingIds);
+      }
       setProcessing(null);
       setProcessingStartTime(null);
     }
@@ -351,12 +451,12 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
 
   return (
     <div className="glass rounded-2xl shadow-card-hover border border-white/20 overflow-hidden">
-      <div className="bg-gradient-primary p-6 relative overflow-hidden">
+      <div className="bg-gradient-primary p-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-white/5"></div>
         <div className="relative flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-white">AI İşleme</h2>
-            <p className="text-white/90 text-sm font-medium">Görsellerinizi AI ile dönüştürün</p>
+            <h2 className="text-base font-bold text-white">AI İşleme</h2>
+            <p className="text-white/90 text-xs font-medium">Görsellerinizi AI ile dönüştürün</p>
           </div>
           <div className="flex items-center gap-2">
             {image.processedVersions && image.processedVersions.length > 0 && onViewPipeline && (
@@ -364,26 +464,26 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                 variant="outline"
                 size="sm"
                 onClick={onViewPipeline}
-                className="glass-dark border-white/30 text-white hover:glass-strong hover:border-white/50"
+                className="glass-dark border-white/30 text-white hover:glass-strong hover:border-white/50 text-xs px-2 py-1 h-7"
               >
-                Pipeline&#39;ı Görüntüle
+                Pipeline
               </Button>
             )}
             <Button
               variant="ghost"
               size="sm"
               onClick={handleDelete}
-              className="text-white hover:glass-dark"
+              className="text-white hover:glass-dark h-7 w-7 p-0"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
       </div>
-      <div className="p-6">
-        <div className="space-y-6">
-          {/* Image Preview */}
-          <div className="relative aspect-video border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+      <div className="p-4">
+        <div className="space-y-4">
+          {/* Image Preview - Compact */}
+          <div className="relative aspect-[4/3] max-h-64 border border-gray-200 rounded-lg overflow-hidden bg-gray-50 mx-auto w-full max-w-md">
             {(() => {
               // If source version is selected, show that image, otherwise show original
               if (selectedSourceVersion) {
@@ -416,13 +516,13 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
           </div>
 
           {/* Image Info - Minimal */}
-          <div className="pb-5 border-b border-gray-200">
+          <div className="pb-3 border-b border-gray-200">
             {selectedSourceVersion ? (
               <>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-md">
-                      İşlenmiş Versiyon Kaynak Olarak Kullanılıyor
+                    <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                      Kaynak
                     </span>
                   </div>
                   <Button
@@ -431,34 +531,37 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                     onClick={() => {
                       setSelectedSourceVersion(null);
                       setCurrentSourceAngle(null);
-                      setAngle(0);
-                      setSelectedAngles([0]);
+                      setAngle(null);
+                      setSelectedAngles([]);
                       onSourceVersionChange?.(null);
                     }}
-                    className="text-xs"
+                    className="text-[10px] px-2 py-0.5 h-6"
                   >
-                    <ArrowLeft className="h-3 w-3 mr-1.5" />
-                    Orijinal Görsele Dön
+                    <ArrowLeft className="h-2.5 w-2.5 mr-1" />
+                    Orijinal
                   </Button>
                 </div>
-                <h4 className="font-semibold text-gray-900 truncate">
+                <h4 className="text-sm font-semibold text-gray-900 truncate">
                   {image.processedVersions?.find(v => v.id === selectedSourceVersion)?.operation.replace(/-/g, ' ') || 'İşlenmiş'}
                 </h4>
               </>
             ) : (
               <>
-                <h4 className="font-semibold text-gray-900 truncate">{image.originalName}</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  {Math.round(image.size / 1024)} KB • {image.mimetype.split('/')[1].toUpperCase()}
+                <h4 className="text-sm font-semibold text-gray-900 truncate">{image.originalName}</h4>
+                <p className="text-xs text-gray-600 mt-1">
+                  {Math.round(image.size / 1024)} KB
+                  {image.width && image.height
+                    ? ` / ${((image.width * image.height) / 1_000_000).toFixed(1)} MP`
+                    : ''}
                 </p>
               </>
             )}
           </div>
 
-          {/* Processing Operations */}
+          {/* Processing Operations - Compact */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">AI Modelleri</h4>
-            <div className="grid grid-cols-1 gap-2.5">
+            <h4 className="text-xs font-semibold text-gray-700 mb-2">AI Modelleri</h4>
+            <div className="grid grid-cols-1 gap-2">
               {PROCESSING_OPERATIONS.map((op) => {
                 const isEditModel = op.category === 'Edit';
                 
@@ -467,24 +570,39 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                     key={op.id}
                     variant="outline"
                     className={cn(
-                      "w-full h-auto p-3.5 flex items-center gap-3 justify-start",
+                      "w-full h-auto p-2.5 flex items-center gap-2 justify-start",
                       isEditModel && !processing && "bg-purple-50/50 border-purple-200 hover:bg-purple-50 hover:border-purple-300",
                       isEditModel && processing === op.id && "border-purple-400 bg-purple-50",
                     )}
                     onClick={() => handleOperationClick(op)}
                     disabled={processing !== null}
                   >
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="font-medium text-gray-900">{op.name}</span>
-                      {op.id === 'nano-banana-edit' && (
-                        <span className="px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded-md">
-                          En İyi
-                        </span>
+                    <div className="flex flex-col gap-0.5 flex-1 items-start">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-gray-900">{op.name}</span>
+                        {op.id === 'nano-banana-edit' && (
+                          <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-amber-100 text-amber-700 rounded">
+                            En İyi
+                          </span>
+                        )}
+                      </div>
+                      {'strengths' in op && (
+                        <div className="flex flex-wrap gap-1 text-[9px] text-gray-600">
+                          <span className="px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
+                            Açı: <span className="font-semibold">{(op as any).strengths.angle}</span>
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
+                            Karakter: <span className="font-semibold">{(op as any).strengths.character}</span>
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
+                            Maliyet: <span className="font-semibold">{(op as any).strengths.cost}</span>
+                          </span>
+                        </div>
                       )}
                     </div>
                     {processing === op.id && (
                       <Loader2 className={cn(
-                        "h-4 w-4 animate-spin flex-shrink-0 text-purple-600"
+                        "h-3.5 w-3.5 animate-spin flex-shrink-0 text-purple-600"
                       )} />
                     )}
                   </Button>
@@ -495,17 +613,17 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
 
           {/* Modern Angle Selection Modal */}
           {showPromptInput && (
-            <div className="space-y-5 p-6 glass rounded-2xl border border-white/20 shadow-card">
+            <div className="space-y-3 p-4 glass rounded-xl border border-white/20 shadow-card">
               {/* Header - Sadeleştirilmiş */}
-              <div className="flex items-center gap-3">
-                <h4 className="font-semibold text-gray-900">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-gray-900">
                   {PROCESSING_OPERATIONS.find(op => op.id === selectedOperation)?.name}
                 </h4>
               </div>
 
-              {/* Selected Angles Display */}
+              {/* Selected Angles Display - Compact */}
               {selectedAngles.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {selectedAngles.map((angle) => {
                     const labels: Record<number, string> = {
                       0: '0° (Ön)', 45: '45°', 90: '90°', 135: '135°',
@@ -514,7 +632,7 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                     return (
                       <span
                         key={angle}
-                        className="px-3 py-1.5 text-sm font-semibold bg-gradient-primary text-white rounded-lg shadow-card border border-primary/30 hover:shadow-card-hover transition-smooth"
+                        className="px-2.5 py-1 text-xs font-semibold bg-gradient-primary text-white rounded shadow-card border border-primary/30"
                       >
                         {labels[angle] || `${angle}°`}
                       </span>
@@ -523,12 +641,44 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                 </div>
               )}
 
-              {/* Modern 3D Angle Picker */}
-              <div className="space-y-4">
+              {/* Model Cost Info - Compact */}
+              {selectedOperation === 'flux-multi-angles' && megaPixels !== null && fluxCost !== null && (
+                <div className="rounded-lg bg-purple-50 border border-purple-200 px-2.5 py-1.5 text-[10px] text-purple-900 flex items-center justify-between">
+                  <span>
+                    Maliyet: <span className="font-semibold">${fluxCost.toFixed(3)} - ₺{(fluxCost * 42.5).toFixed(2)}</span>
+                  </span>
+                  <span className="text-[9px] text-purple-700">
+                    {megaPixels.toFixed(2)} MP
+                  </span>
+                </div>
+              )}
+              {selectedOperation === 'seedream-edit' && (
+                <div className="rounded-lg bg-purple-50 border border-purple-200 px-2.5 py-1.5 text-[10px] text-purple-900 flex items-center justify-between">
+                  <span>
+                    Maliyet: <span className="font-semibold">${SEEDREAM_COST_USD.toFixed(2)} - ₺{(SEEDREAM_COST_USD * 42.5).toFixed(2)}</span>
+                  </span>
+                  <span className="text-[9px] text-purple-700">
+                    Sabit
+                  </span>
+                </div>
+              )}
+              {selectedOperation === 'nano-banana-edit' && (
+                <div className="rounded-lg bg-purple-50 border border-purple-200 px-2.5 py-1.5 text-[10px] text-purple-900 flex items-center justify-between">
+                  <span>
+                    Maliyet: <span className="font-semibold">${NANO_COST_USD.toFixed(2)} - ₺{(NANO_COST_USD * 42.5).toFixed(2)}</span>
+                  </span>
+                  <span className="text-[9px] text-purple-700">
+                    Sabit
+                  </span>
+                </div>
+              )}
+
+              {/* Modern 3D Angle Picker - Compact */}
+              <div className="space-y-3">
                 {/* Current Angle Badge */}
                 {currentSourceAngle !== null && (
                   <div className="flex items-center justify-center">
-                    <span className="px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded-lg">
+                    <span className="px-2.5 py-1 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 rounded">
                       Mevcut Açı: {currentSourceAngle}°
                     </span>
                   </div>
@@ -538,29 +688,24 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                   value={selectedAngles}
                   onAngleChange={(angles) => {
                     setSelectedAngles(angles);
-                    setAngle(angles[0] || 0);
+                    setAngle(angles.length > 0 ? angles[0] : null);
                   }}
                   className={cn(processing !== null && "opacity-50 pointer-events-none")}
                 />
               </div>
 
-              {/* Custom Prompt Input - Only show if source version is selected */}
-              {selectedSourceVersion && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Ek Prompt (İsteğe Bağlı)
-                  </label>
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Ek talimatlar girin (örn: 'güneş gözlüğü takıyor', 'gülümsüyor', 'kırmızı arka plan')"
-                    className="w-full min-h-[100px] px-4 py-3 border border-gray-200 rounded-lg focus-ring resize-none text-sm"
-                    disabled={processing !== null}
-                  />
-                  <p className="text-xs text-gray-600">
-                    Bu, döndürme açısı ile birleştirilecektir. Sadece açıyı değiştirmek için boş bırakın.
-                  </p>
-                </div>
+              {/* Prompt Assistant */}
+              {selectedSourceVersion && selectedSourceVersionData && (
+                <PromptAssistant
+                  imageId={image.id}
+                  originalImageUrl={originalImageUrl}
+                  selectedVersion={selectedSourceVersionData}
+                  allProcessedVersions={image.processedVersions || []}
+                  prompt={prompt}
+                  onPromptChange={setPrompt}
+                  angles={selectedAngles}
+                  disabled={processing !== null}
+                />
               )}
               
               {/* Actions */}
@@ -577,8 +722,8 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                     onClick={() => {
                       setShowPromptInput(false);
                       setPrompt('');
-                      setAngle(0);
-                      setSelectedAngles([0]);
+                      setAngle(null);
+                      setSelectedAngles([]);
                       setError(null);
                       setSelectedSourceVersion(null);
                       setSelectedOperation('');
@@ -644,24 +789,29 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                     })}
                   </div>
                 </div>
-                {pendingAngles.length > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">Dönüş Açıları:</span>
-                    <div className="flex flex-wrap gap-1.5 justify-end">
-                      {pendingAngles.map((angle) => {
-                        const labels: Record<number, string> = {
-                          0: '0°', 45: '45°', 90: '90°', 135: '135°',
-                          180: '180°', 225: '225°', 270: '270°', 315: '315°'
-                        };
-                        return (
-                          <span
-                            key={angle}
-                            className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded-md"
-                          >
-                            {labels[angle] || `${angle}°`}
-                          </span>
-                        );
-                      })}
+                {/* Cost Information */}
+                {selectedOperation === 'flux-multi-angles' && megaPixels !== null && fluxCost !== null && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium text-gray-700">Tahmini Maliyet:</span>
+                    <div className="rounded-lg bg-purple-50 border border-purple-200 px-3 py-2 text-xs text-purple-900">
+                      <span className="font-semibold">${fluxCost.toFixed(3)} - ₺{(fluxCost * 42.5).toFixed(2)}</span>
+                      <span className="text-purple-700 ml-2">({megaPixels.toFixed(2)} MP)</span>
+                    </div>
+                  </div>
+                )}
+                {selectedOperation === 'seedream-edit' && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium text-gray-700">Tahmini Maliyet:</span>
+                    <div className="rounded-lg bg-purple-50 border border-purple-200 px-3 py-2 text-xs text-purple-900">
+                      <span className="font-semibold">${SEEDREAM_COST_USD.toFixed(2)} - ₺{(SEEDREAM_COST_USD * 42.5).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+                {selectedOperation === 'nano-banana-edit' && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium text-gray-700">Tahmini Maliyet:</span>
+                    <div className="rounded-lg bg-purple-50 border border-purple-200 px-3 py-2 text-xs text-purple-900">
+                      <span className="font-semibold">${NANO_COST_USD.toFixed(2)} - ₺{(NANO_COST_USD * 42.5).toFixed(2)}</span>
                     </div>
                   </div>
                 )}

@@ -64,9 +64,20 @@ export class FalAIService {
 
     try {
       if (!parameters.prompt || !parameters.prompt.trim()) {
+        console.error(`❌ FalAIService - Prompt is missing or empty!`, {
+          operation,
+          hasPrompt: !!parameters.prompt,
+          promptLength: parameters.prompt?.length || 0,
+          promptPreview: parameters.prompt?.substring(0, 100) || '(empty)',
+          allParams: Object.keys(parameters)
+        });
         throw createError('Prompt is required for AI image processing', 400);
       }
-      console.log(`🎯 Processing ${operation} with prompt: "${parameters.prompt}"`);
+      console.log(`🎯 FalAIService - Processing ${operation} with prompt:`, {
+        promptLength: parameters.prompt.length,
+        promptPreview: parameters.prompt.substring(0, 150) + (parameters.prompt.length > 150 ? '...' : ''),
+        fullPrompt: parameters.prompt
+      });
 
       // Convert buffer to base64 for fal.ai
       const imageBase64 = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
@@ -82,6 +93,9 @@ export class FalAIService {
           break;
         case 'nano-banana-edit':
           result = await this.nanoBananaEdit(imageBase64, parameters);
+          break;
+        case 'flux-multi-angles':
+          result = await this.fluxMultiAngles(imageBase64, parameters);
           break;
         default:
           throw createError(`Unsupported operation: ${operation}`, 400);
@@ -118,6 +132,12 @@ export class FalAIService {
   private async seedreamEdit(imageBase64: string, parameters: Record<string, any>) {
     const imageUrls = parameters.image_urls || [imageBase64];
     
+    console.log(`🎨 Seedream Edit - Sending to Fal.ai:`, {
+      prompt: parameters.prompt,
+      promptLength: parameters.prompt?.length || 0,
+      imageUrlsCount: imageUrls.length
+    });
+    
     return await fal.subscribe('fal-ai/bytedance/seedream/v4/edit', {
       input: {
         prompt: parameters.prompt,
@@ -126,8 +146,12 @@ export class FalAIService {
       },
       logs: true,
       onQueueUpdate: (update) => {
+        console.log(`🎨 Seedream Edit - Queue Update:`, {
+          status: update.status,
+          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
+        });
         if (update.status === "IN_PROGRESS") {
-          console.log('🎨 Seedream Edit:', update.logs?.map(log => log.message).join(', '));
+          console.log('🎨 Seedream Edit - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
         }
       }
     });
@@ -141,6 +165,11 @@ export class FalAIService {
    * - Best for: Object insertion, contextual modifications, realistic edits
    */
   private async fluxProKontext(imageBase64: string, parameters: Record<string, any>) {
+    console.log(`⚡ Flux Pro Kontext - Sending to Fal.ai:`, {
+      prompt: parameters.prompt,
+      promptLength: parameters.prompt?.length || 0
+    });
+    
     return await fal.subscribe('fal-ai/flux-pro/kontext', {
       input: {
         prompt: parameters.prompt,
@@ -149,8 +178,12 @@ export class FalAIService {
       },
       logs: true,
       onQueueUpdate: (update) => {
+        console.log(`⚡ Flux Pro Kontext - Queue Update:`, {
+          status: update.status,
+          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
+        });
         if (update.status === "IN_PROGRESS") {
-          console.log('⚡ Flux Pro Kontext:', update.logs?.map(log => log.message).join(', '));
+          console.log('⚡ Flux Pro Kontext - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
         }
       }
     });
@@ -166,6 +199,13 @@ export class FalAIService {
   private async nanoBananaEdit(imageBase64: string, parameters: Record<string, any>) {
     const imageUrls = parameters.image_urls || [imageBase64];
     
+    console.log(`🍌 Nano Banana Edit - Sending to Fal.ai:`, {
+      prompt: parameters.prompt,
+      promptLength: parameters.prompt?.length || 0,
+      imageUrlsCount: imageUrls.length,
+      hasOtherParams: Object.keys(parameters).filter(k => !['prompt', 'image_urls'].includes(k)).length
+    });
+    
     return await fal.subscribe('fal-ai/nano-banana/edit', {
       input: {
         prompt: parameters.prompt,
@@ -174,8 +214,51 @@ export class FalAIService {
       },
       logs: true,
       onQueueUpdate: (update) => {
+        console.log(`🍌 Nano Banana Edit - Queue Update:`, {
+          status: update.status,
+          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
+        });
         if (update.status === "IN_PROGRESS") {
-          console.log('🍌 Nano Banana Edit:', update.logs?.map(log => log.message).join(', '));
+          console.log('🍌 Nano Banana Edit - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
+        }
+      }
+    });
+  }
+
+  /**
+   * Flux 2 LoRA Multiple Angles Model
+   * - Generates rotated views of the input image based on horizontal_angle
+   * - horizontal_angle: float, expected rotation in degrees
+   */
+  private async fluxMultiAngles(imageBase64: string, parameters: Record<string, any>) {
+    const horizontalAngle =
+      typeof parameters.horizontal_angle === 'number'
+        ? parameters.horizontal_angle
+        : typeof parameters.angle === 'number'
+          ? parameters.angle
+          : undefined;
+
+    console.log(`🌀 Flux 2 Multi Angles - Sending to Fal.ai:`, {
+      prompt: parameters.prompt,
+      promptLength: parameters.prompt?.length || 0,
+      horizontalAngle
+    });
+
+    return await fal.subscribe('fal-ai/flux-2-lora-gallery/multiple-angles', {
+      input: {
+        image_urls: [imageBase64],
+        horizontal_angle: horizontalAngle,
+        prompt: parameters.prompt,
+        ...parameters
+      },
+      logs: true,
+      onQueueUpdate: (update) => {
+        console.log(`🌀 Flux 2 Multi Angles - Queue Update:`, {
+          status: update.status,
+          logs: update.logs?.map(log => log.message).join(', ') || 'No logs'
+        });
+        if (update.status === 'IN_PROGRESS') {
+          console.log('🌀 Flux 2 Multiple Angles - IN_PROGRESS:', update.logs?.map(log => log.message).join(', '));
         }
       }
     });
@@ -219,7 +302,8 @@ export class FalAIService {
     return [
       'seedream-edit',    // Bytedance Seedream v4 - Advanced scene editing
       'flux-pro-kontext', // Flux Pro Kontext - Context-aware editing
-      'nano-banana-edit'  // Nano Banana Edit - Fast multi-image editing
+      'nano-banana-edit', // Nano Banana Edit - Fast multi-image editing
+      'flux-multi-angles' // Flux 2 LoRA multiple angles
     ];
   }
 
