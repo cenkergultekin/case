@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Filter, Download, Clock, Zap, Grid, List, Grid3x3 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
-import { imageAPI, getImageUrl } from '@/lib/api';
+import { imageAPI, getImageUrl, normalizeImageUrl } from '@/lib/api';
 
 interface ProcessedVersion {
   id: string;
@@ -67,7 +67,7 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
   };
 
   const downloadImage = (version: ProcessedVersion) => {
-    const imageUrl = version.url?.includes('/api/uploads/') ? version.url : getImageUrl(version.filename);
+    const imageUrl = normalizeImageUrl(version.url, version.filename);
     const link = document.createElement('a');
     link.href = imageUrl;
     link.download = version.filename;
@@ -240,7 +240,7 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                       viewMode === 'grid' ? 'aspect-[3/4]' : 'w-48 h-32 flex-shrink-0'
                     }`}>
                       <img
-                        src={version.url?.includes('/api/uploads/') ? version.url : getImageUrl(version.filename)}
+                        src={normalizeImageUrl(version.url, version.filename)}
                         alt={version.operation}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                         onError={(e) => {

@@ -2,12 +2,53 @@
 import axios from 'axios';
 import { fetchIdToken } from '@/lib/authClient';
 
+// Get API URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+
+// Debug: Log API URL in development (will be removed in production build)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('API Base URL:', API_BASE_URL);
+}
 
 // Helper function
 export const getImageUrl = (filename: string) => {
   const baseUrl = API_BASE_URL.replace('/api', '');
   return `${baseUrl}/api/uploads/${filename}`;
+};
+
+// Helper function to normalize image URLs (fixes localhost URLs from backend)
+export const normalizeImageUrl = (url: string | undefined, filename?: string): string => {
+  // If no URL provided, use filename
+  if (!url && filename) {
+    return getImageUrl(filename);
+  }
+  if (!url) {
+    return '';
+  }
+  
+  // If URL contains localhost, replace with correct backend URL
+  if (url.includes('localhost:4000') || url.includes('http://localhost')) {
+    const baseUrl = API_BASE_URL.replace('/api', '');
+    const extractedFilename = url.split('/').pop() || filename || '';
+    return `${baseUrl}/api/uploads/${extractedFilename}`;
+  }
+  
+  // If URL already contains /api/uploads/ and is a valid URL, use it as is
+  if (url.includes('/api/uploads/') && (url.startsWith('http://') || url.startsWith('https://'))) {
+    return url;
+  }
+  
+  // If URL is just a filename, construct full URL
+  if (!url.includes('://') && filename) {
+    return getImageUrl(filename);
+  }
+  
+  // Fallback: use filename if provided
+  if (filename) {
+    return getImageUrl(filename);
+  }
+  
+  return url;
 };
 
 export const api = axios.create({

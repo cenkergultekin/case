@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Download, ChevronRight, Clock, Zap, Calendar, HardDrive, RotateCw, X, Eye, Loader2, Trash2 } from 'lucide-react';
 import { Button } from './ui/Button';
-import { getImageUrl } from '@/lib/api';
+import { getImageUrl, normalizeImageUrl } from '@/lib/api';
 import { cn, formatFileSize } from '@/lib/utils';
 
 interface ProcessedVersion {
@@ -765,9 +765,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                           if ((e.target as HTMLElement).closest('button')) {
                             return;
                           }
-                          const imageUrl = version.url?.includes('/api/uploads/')
-                            ? version.url
-                            : getImageUrl(version.filename);
+                          const imageUrl = normalizeImageUrl(version.url, version.filename);
                           setPreviewImage({ 
                             url: imageUrl, 
                             name: `${version.operation} - ${angle || 'processed'}°`,
@@ -776,11 +774,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                         }}
                       >
                         <img
-                          src={
-                            version.url?.includes('/api/uploads/')
-                              ? version.url
-                              : getImageUrl(version.filename)
-                          }
+                          src={normalizeImageUrl(version.url, version.filename)}
                           alt={version.operation}
                           className="w-full h-full object-cover pointer-events-none"
                           onError={(e) => {
@@ -910,9 +904,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                             className="flex-1 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const imageUrl = version.url?.includes('/api/uploads/')
-                                ? version.url
-                                : getImageUrl(version.filename);
+                              const imageUrl = normalizeImageUrl(version.url, version.filename);
                               setPreviewImage({ 
                                 url: imageUrl, 
                                 name: `${version.operation} - ${angle || 'processed'}°`,
@@ -929,9 +921,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                             className="flex-1 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const imageUrl = version.url?.includes('/api/uploads/')
-                                ? version.url
-                                : getImageUrl(version.filename);
+                              const imageUrl = normalizeImageUrl(version.url, version.filename);
                             downloadImageFile(imageUrl, version.filename);
                             }}
                           >
@@ -1211,11 +1201,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                             >
                               <div className="w-full h-full overflow-hidden rounded-xl">
                                 <img
-                                  src={
-                                    version.url?.includes('/api/uploads/')
-                                      ? version.url
-                                      : getImageUrl(version.filename)
-                                  }
+                                  src={normalizeImageUrl(version.url, version.filename)}
                                   alt={version.operation}
                                   className={cn(
                                     "w-full h-full object-cover pointer-events-none",
@@ -1235,9 +1221,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                                     className="bg-white hover:bg-white text-[11px] px-2 py-1 shadow-card w-full justify-center"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      const imageUrl = version.url?.includes('/api/uploads/')
-                                        ? version.url
-                                        : getImageUrl(version.filename);
+                                      const imageUrl = normalizeImageUrl(version.url, version.filename);
                                       downloadImageFile(imageUrl, version.filename);
                                     }}
                                   >

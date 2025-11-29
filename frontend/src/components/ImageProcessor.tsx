@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Slider } from './ui/Slider';
 import { AnglePicker } from './AnglePicker';
 import { PromptAssistant } from './PromptAssistant';
-import { imageAPI, getImageUrl } from '@/lib/api';
+import { imageAPI, getImageUrl, normalizeImageUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 interface ProcessedVersion {
@@ -482,7 +482,7 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
               if (selectedSourceVersion) {
                 const sourceVersion = image.processedVersions?.find(v => v.id === selectedSourceVersion);
                 if (sourceVersion) {
-                  const imageUrl = sourceVersion.url?.includes('/api/uploads/') ? sourceVersion.url : getImageUrl(sourceVersion.filename);
+                  const imageUrl = normalizeImageUrl(sourceVersion.url, sourceVersion.filename);
                   return (
                     <img
                       src={imageUrl}
