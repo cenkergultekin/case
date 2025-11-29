@@ -38,7 +38,7 @@ export default function Home() {
   const [showUpload, setShowUpload] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('upload');
-  const [processingImages, setProcessingImages] = useState<Array<{ id: string; startTime: number; angle?: number; sourceId: string }>>([]);
+  const [processingImages, setProcessingImages] = useState<Array<{ id: string; startTime: number; angle?: number; sourceId: string; sourceVersionId?: string }>>([]);
   const [showLanding, setShowLanding] = useState<boolean | null>(null); // null = auto-detect based on auth
 
   useEffect(() => {

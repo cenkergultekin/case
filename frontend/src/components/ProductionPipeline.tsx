@@ -189,15 +189,33 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
       
       // Add new processing images from prop
       processingImages.forEach(processing => {
+        // Debug log
+        console.log('🟡 Processing item check:', {
+          processing,
+          imageId: image.id,
+          sourceId: processing.sourceId,
+          sourceVersionId: (processing as any).sourceVersionId,
+          currentVersionsCount: currentVersions.length
+        });
+        
         // Add processing if:
         // 1. It's for the original image (sourceId === image.id), OR
         // 2. It's for a processed version of this image (sourceVersionId exists and matches a version)
         const isForOriginalImage = processing.sourceId === image.id;
-        const isForProcessedVersion = processing.sourceVersionId && 
-          currentVersions.some(v => v.id === processing.sourceVersionId);
+        const sourceVersionId = (processing as any).sourceVersionId;
+        const isForProcessedVersion = sourceVersionId && 
+          currentVersions.some(v => v.id === sourceVersionId);
+        
+        console.log('🟡 Processing item checks:', {
+          isForOriginalImage,
+          isForProcessedVersion,
+          sourceVersionId,
+          willSkip: !isForOriginalImage && !isForProcessedVersion
+        });
         
         // Skip if not related to this image at all
         if (!isForOriginalImage && !isForProcessedVersion) {
+          console.log('🟡 Skipping processing item (not for this image)');
           return;
         }
         
