@@ -120,7 +120,7 @@ export class OpenRouterService {
         );
       }
 
-      const data: OpenRouterResponse = await response.json();
+      const data = await response.json() as OpenRouterResponse;
       const promptText = this.extractText(data?.choices?.[0]?.message?.content);
 
       if (!promptText) {
