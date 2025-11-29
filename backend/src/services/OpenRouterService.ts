@@ -4,6 +4,27 @@ type MessageContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' } };
 
+interface OpenRouterResponse {
+  id?: string;
+  model?: string;
+  choices?: Array<{
+    index?: number;
+    message?: {
+      role?: string;
+      content?: string | MessageContentPart[];
+    };
+    finish_reason?: string;
+  }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    completion_tokens_details?: {
+      reasoning_tokens?: number;
+    };
+  };
+}
+
 export interface GeneratePromptOptions {
   originalImageData: string;
   referenceImageData: string;
@@ -99,17 +120,13 @@ export class OpenRouterService {
         );
       }
 
-      const data = await response.json();
+      const data: OpenRouterResponse = await response.json();
       const promptText = this.extractText(data?.choices?.[0]?.message?.content);
 
       if (!promptText) {
         console.error('OpenRouter returned empty response:', data);
         throw createError('OpenRouter boş bir yanıt döndürdü', 502);
       }
-
-      const latency = Date.now() - startedAt;
-      const usage = data?.usage || {};
-      const reasoningTokens = (data?.usage as any)?.completion_tokens_details?.reasoning_tokens || 0;
 
       return {
         prompt: promptText.trim(),
