@@ -28,20 +28,30 @@ app.use(compression());
 // Support multiple origins (comma-separated) or single origin
 const getAllowedOrigins = (): string[] => {
   const frontendUrl = process.env.FRONTEND_URL;
-  if (!frontendUrl) {
-    return ['http://localhost:3000'];
+  const origins: string[] = [];
+  
+  // Always allow localhost for development/testing
+  origins.push('http://localhost:3000');
+  
+  if (frontendUrl) {
+    // Support comma-separated origins for multiple environments
+    const urlOrigins = frontendUrl.split(',').map(url => url.trim());
+    origins.push(...urlOrigins);
   }
-  // Support comma-separated origins for multiple environments
-  return frontendUrl.split(',').map(url => url.trim());
+  
+  // Remove duplicates
+  return [...new Set(origins)];
 };
 
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = getAllowedOrigins();
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+    // Always allow localhost for development/testing
+    if (!origin || allowedOrigins.includes(origin) || origin?.startsWith('http://localhost:')) {
       callback(null, true);
     } else {
+      console.warn(`CORS blocked origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
