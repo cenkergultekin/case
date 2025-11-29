@@ -244,7 +244,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
                     <div className="w-24 h-24 rounded-lg bg-gray-100 border-2 border-dashed border-blue-300 flex items-center justify-center mb-1">
                       <ImageIcon className="h-8 w-8 text-blue-400" />
                     </div>
-                    <p className="text-[9px] text-gray-600 text-center">Pipeline'dan</p>
+                    <p className="text-[9px] text-gray-600 text-center">Pipeline&apos;dan</p>
                   </div>
                 </div>
 
@@ -494,7 +494,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             Görsellerinizi AI ile dönüştürmeye başlamak için sadece birkaç saniye sürer.
           </p>
           <Button
-            size="md"
+            size="default"
             onClick={onGetStarted}
             className="bg-white text-primary hover:bg-white/90 text-sm px-5 py-3 shadow-card-hover mb-3"
           >
