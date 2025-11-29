@@ -176,6 +176,14 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
     
     // Add new processing images from prop
     // Always sync processingImages prop with processingStates Map
+    // Debug: Log before setProcessingStates
+    console.log('🟡 Before setProcessingStates:', {
+      processingImagesLength: processingImages.length,
+      processingImages,
+      imageId: image.id,
+      currentVersionsCount: currentVersions.length
+    });
+    
     setProcessingStates(prev => {
       const updated = new Map(prev);
       
@@ -188,14 +196,22 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
       }
       
       // Add new processing images from prop
-      processingImages.forEach(processing => {
+      console.log('🟡 Inside setProcessingStates, processingImages.length:', processingImages.length);
+      
+      if (processingImages.length === 0) {
+        console.log('🟡 No processing images to process');
+        return updated;
+      }
+      
+      processingImages.forEach((processing, index) => {
         // Debug log
-        console.log('🟡 Processing item check:', {
+        console.log(`🟡 Processing item check [${index}]:`, {
           processing,
           imageId: image.id,
           sourceId: processing.sourceId,
           sourceVersionId: (processing as any).sourceVersionId,
-          currentVersionsCount: currentVersions.length
+          currentVersionsCount: currentVersions.length,
+          sourceIdMatch: processing.sourceId === image.id
         });
         
         // Add processing if:
@@ -206,7 +222,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
         const isForProcessedVersion = sourceVersionId && 
           currentVersions.some(v => v.id === sourceVersionId);
         
-        console.log('🟡 Processing item checks:', {
+        console.log(`🟡 Processing item checks [${index}]:`, {
           isForOriginalImage,
           isForProcessedVersion,
           sourceVersionId,
@@ -215,7 +231,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
         
         // Skip if not related to this image at all
         if (!isForOriginalImage && !isForProcessedVersion) {
-          console.log('🟡 Skipping processing item (not for this image)');
+          console.log(`🟡 Skipping processing item [${index}] (not for this image)`);
           return;
         }
         
@@ -226,26 +242,30 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
           
           // Match by source and angle (if angle is available)
           // For processed version sources, match by sourceVersionId
-          const sourceMatches = processing.sourceVersionId 
-            ? vSourceId === processing.sourceVersionId || v.sourceProcessedVersionId === processing.sourceVersionId
+          const sourceMatches = sourceVersionId 
+            ? vSourceId === sourceVersionId || v.sourceProcessedVersionId === sourceVersionId
             : vSourceId === processing.sourceId || vSourceId === image.id;
           const angleMatches = vAngle === null || processing.angle === vAngle || processing.angle === undefined;
           return sourceMatches && angleMatches;
         });
         
-      // Always add if not completed - this ensures new processing shows up immediately
-      // Force update even if already exists to ensure state is fresh
-      if (!isCompleted) {
-        updated.set(processing.id, {
-          ...processing,
-          startTime: processing.startTime || Date.now()
-        });
-        console.log('🟡 Added processing state:', processing.id, processing);
-      }
-    });
-    
-    console.log('🟡 Final processingStates size:', updated.size, Array.from(updated.keys()));
-    return updated;
+        console.log(`🟡 Processing item [${index}] isCompleted:`, isCompleted);
+        
+        // Always add if not completed - this ensures new processing shows up immediately
+        // Force update even if already exists to ensure state is fresh
+        if (!isCompleted) {
+          updated.set(processing.id, {
+            ...processing,
+            startTime: processing.startTime || Date.now()
+          });
+          console.log('🟡 Added processing state:', processing.id, processing);
+        } else {
+          console.log(`🟡 Skipping processing item [${index}] (already completed)`);
+        }
+      });
+      
+      console.log('🟡 Final processingStates size:', updated.size, Array.from(updated.keys()));
+      return updated;
     });
     
     previousProcessedVersionsRef.current = currentVersionIds;
