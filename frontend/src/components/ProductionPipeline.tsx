@@ -1222,8 +1222,18 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                                     newlyCompletedImages.has(version.id) && "animate-fadeInBlur"
                                   )}
                                   onError={(e) => {
-                                    console.error('Failed to load processed image:', version.url);
-                                    e.currentTarget.style.display = 'none';
+                                    const normalizedUrl = normalizeImageUrl(version.url, version.filename);
+                                    console.error('Failed to load processed image:', {
+                                      original: version.url,
+                                      normalized: normalizedUrl,
+                                      filename: version.filename
+                                    });
+                                    // Try to reload with normalized URL
+                                    if (normalizedUrl && normalizedUrl !== version.url) {
+                                      e.currentTarget.src = normalizedUrl;
+                                    } else {
+                                      e.currentTarget.style.display = 'none';
+                                    }
                                   }}
                                 />
                               </div>

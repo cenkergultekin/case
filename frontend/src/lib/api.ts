@@ -26,19 +26,22 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
     return '';
   }
   
-  // If URL contains localhost, replace with correct backend URL
-  if (url.includes('localhost:4000') || url.includes('http://localhost')) {
+  // PRIORITY: If URL contains localhost (check this FIRST before other validations)
+  if (url.includes('localhost') || url.includes('127.0.0.1') || url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
     const baseUrl = API_BASE_URL.replace('/api', '');
+    // Extract filename from URL or use provided filename
     const extractedFilename = url.split('/').pop() || filename || '';
-    return `${baseUrl}/api/uploads/${extractedFilename}`;
+    const normalized = `${baseUrl}/api/uploads/${extractedFilename}`;
+    console.log('🔧 Normalized localhost URL:', { from: url, to: normalized });
+    return normalized;
   }
   
-  // If URL already contains /api/uploads/ and is a valid URL, use it as is
-  if (url.includes('/api/uploads/') && (url.startsWith('http://') || url.startsWith('https://'))) {
+  // If URL already contains /api/uploads/ and is a valid HTTPS URL, use it as is
+  if (url.includes('/api/uploads/') && url.startsWith('https://')) {
     return url;
   }
   
-  // If URL is just a filename, construct full URL
+  // If URL is just a filename (no protocol), construct full URL
   if (!url.includes('://') && filename) {
     return getImageUrl(filename);
   }
