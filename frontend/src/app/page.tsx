@@ -98,7 +98,23 @@ export default function Home() {
       sourceId: processingInfo.sourceId || selectedImage?.id || '', // Use provided sourceId
       sourceVersionId: processingInfo.sourceId !== selectedImage?.id ? processingInfo.sourceId : undefined // Track if it's a version ID
     }));
-    setProcessingImages(prev => [...prev, ...newProcessingImages]);
+    
+    // Debug log
+    console.log('🟢 handleProcessingStart called:', {
+      processingInfo,
+      newProcessingImages,
+      selectedImageId: selectedImage?.id
+    });
+    
+    setProcessingImages(prev => {
+      const updated = [...prev, ...newProcessingImages];
+      console.log('🟢 Processing images updated:', {
+        prevCount: prev.length,
+        newCount: updated.length,
+        all: updated
+      });
+      return updated;
+    });
   };
 
   const handleProcessingError = (processingIds: string[]) => {
@@ -107,6 +123,13 @@ export default function Home() {
   };
 
   const handleProcessComplete = (processedVersion: any) => {
+    // Debug log
+    console.log('🟢 handleProcessComplete called:', {
+      processedVersion,
+      selectedImageId: selectedImage?.id,
+      currentProcessingCount: processingImages.length
+    });
+    
     // Normalize URL if it contains localhost
     if (processedVersion?.url && processedVersion.url.includes('localhost')) {
       processedVersion.url = normalizeImageUrl(processedVersion.url, processedVersion.filename);

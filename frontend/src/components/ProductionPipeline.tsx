@@ -62,6 +62,14 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
   
   // Track processing images and remove them when they complete
   useEffect(() => {
+    // Debug log
+    console.log('🟡 ProductionPipeline useEffect triggered:', {
+      processingImagesCount: processingImages.length,
+      processingImages,
+      processedVersionsCount: image.processedVersions?.length || 0,
+      imageId: image.id
+    });
+    
     const currentVersions = image.processedVersions || [];
     const currentVersionIds = new Set(currentVersions.map(v => v.id));
     const previousVersionIds = previousProcessedVersionsRef.current;
@@ -207,13 +215,19 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
           return sourceMatches && angleMatches;
         });
         
-        // Always add if not completed - this ensures new processing shows up immediately
-        if (!isCompleted) {
-          updated.set(processing.id, processing);
-        }
-      });
-      
-      return updated;
+      // Always add if not completed - this ensures new processing shows up immediately
+      // Force update even if already exists to ensure state is fresh
+      if (!isCompleted) {
+        updated.set(processing.id, {
+          ...processing,
+          startTime: processing.startTime || Date.now()
+        });
+        console.log('🟡 Added processing state:', processing.id, processing);
+      }
+    });
+    
+    console.log('🟡 Final processingStates size:', updated.size, Array.from(updated.keys()));
+    return updated;
     });
     
     previousProcessedVersionsRef.current = currentVersionIds;
