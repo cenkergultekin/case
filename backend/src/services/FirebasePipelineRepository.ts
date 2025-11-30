@@ -6,7 +6,7 @@ import { ImageMetadata, ImagePipelineRecord, ProcessedVersion, UploadOptions } f
 export class FirebasePipelineRepository {
   private db: admin.firestore.Firestore;
   private collection: admin.firestore.CollectionReference;
-  private storageBucket: admin.storage.Bucket | null;
+  private storageBucket: ReturnType<admin.storage.Storage['bucket']> | null;
 
   constructor() {
     this.db = getFirestore();
@@ -155,49 +155,51 @@ export class FirebasePipelineRepository {
     };
 
     const versionsSnapshot = await docRef.collection('versions').orderBy('createdAt', 'asc').get();
-    const versions: ProcessedVersion[] = versionsSnapshot.docs.map((versionDoc: admin.firestore.QueryDocumentSnapshot) => {
-      const versionData = versionDoc.data();
-      // Get URL from Firestore or construct it if missing (for backward compatibility)
-      let versionUrl = versionData.url;
-      if (!versionUrl && versionData.filename) {
-        // Construct URL based on storage type
-        const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
-        if (useFirebaseStorage) {
-          // Use Firebase Storage URL format
-          const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-          if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
-            versionUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${versionData.filename}`)}?alt=media`;
-          } else {
-            // For signed URLs, generate them on-demand
-            const signedUrl = await this.getSignedUrl(versionData.filename);
-            if (signedUrl) {
-              versionUrl = signedUrl;
+    const versions: ProcessedVersion[] = await Promise.all(
+      versionsSnapshot.docs.map(async (versionDoc: admin.firestore.QueryDocumentSnapshot) => {
+        const versionData = versionDoc.data();
+        // Get URL from Firestore or construct it if missing (for backward compatibility)
+        let versionUrl = versionData.url;
+        if (!versionUrl && versionData.filename) {
+          // Construct URL based on storage type
+          const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+          if (useFirebaseStorage) {
+            // Use Firebase Storage URL format
+            const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+            if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
+              versionUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${versionData.filename}`)}?alt=media`;
             } else {
-              // Fallback to public URL format if signed URL generation fails
-              const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-              versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+              // For signed URLs, generate them on-demand
+              const signedUrl = await this.getSignedUrl(versionData.filename);
+              if (signedUrl) {
+                versionUrl = signedUrl;
+              } else {
+                // Fallback to public URL format if signed URL generation fails
+                const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+                versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+              }
             }
+          } else {
+            // Local filesystem
+            const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+            versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
           }
-        } else {
-          // Local filesystem
-          const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-          versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
         }
-      }
-      return {
-        id: versionDoc.id,
-        operation: versionData.operation,
-        aiModel: versionData.aiModel,
-        parameters: versionData.parameters,
-        filename: versionData.filename,
-        url: versionUrl || '',
-        size: versionData.size || 0,
-        createdAt: this.toDate(versionData.createdAt),
-        processingTimeMs: versionData.processingTimeMs,
-        sourceImageId: versionData.sourceImageId,
-        sourceProcessedVersionId: versionData.sourceProcessedVersionId
-      };
-    });
+        return {
+          id: versionDoc.id,
+          operation: versionData.operation,
+          aiModel: versionData.aiModel,
+          parameters: versionData.parameters,
+          filename: versionData.filename,
+          url: versionUrl || '',
+          size: versionData.size || 0,
+          createdAt: this.toDate(versionData.createdAt),
+          processingTimeMs: versionData.processingTimeMs,
+          sourceImageId: versionData.sourceImageId,
+          sourceProcessedVersionId: versionData.sourceProcessedVersionId
+        };
+      })
+    );
 
     baseMetadata.processedVersions = versions;
     return baseMetadata;
