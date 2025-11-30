@@ -74,28 +74,7 @@ router.get('/processed',
   })
 );
 
-// Process image with fal.ai (spesifik route, :imageId'den önce gelmeli)
-router.post('/process/:imageId',
-  asyncHandler(async (req: Request, res: Response) => {
-    const userId = requireUserId(req);
-    const { imageId } = req.params;
-    const { operation, parameters, sourceProcessedVersionId, angles, customPrompt } = req.body;
-
-    if (!operation) {
-      throw createError('Processing operation is required', 400);
-    }
-
-    const result = await imageService.processWithFalAI(userId, imageId, operation, parameters, sourceProcessedVersionId, angles, customPrompt);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Image processed successfully',
-      data: result
-    });
-  })
-);
-
-// Smart prompt assistant
+// Smart prompt assistant (must come before /:imageId routes)
 router.post('/:imageId/prompt-assistant',
   asyncHandler(async (req: Request, res: Response) => {
     const userId = requireUserId(req);
@@ -125,6 +104,27 @@ router.post('/:imageId/prompt-assistant',
     res.status(200).json({
       success: true,
       data: assistantResponse
+    });
+  })
+);
+
+// Process image with fal.ai (spesifik route, :imageId'den önce gelmeli)
+router.post('/process/:imageId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = requireUserId(req);
+    const { imageId } = req.params;
+    const { operation, parameters, sourceProcessedVersionId, angles, customPrompt } = req.body;
+
+    if (!operation) {
+      throw createError('Processing operation is required', 400);
+    }
+
+    const result = await imageService.processWithFalAI(userId, imageId, operation, parameters, sourceProcessedVersionId, angles, customPrompt);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Image processed successfully',
+      data: result
     });
   })
 );
