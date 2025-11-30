@@ -76,10 +76,16 @@ Proje monorepo yapısında, frontend ve backend ayrı dizinlerde organize edilmi
    FAL_SUBSCRIBER_KEY=your_fal_ai_key
    BACKEND_PORT=4000
    FRONTEND_URL=http://localhost:3000
+   BASE_URL=http://localhost:4000
    OPENROUTER_API_KEY=your_openrouter_key
    FIREBASE_PROJECT_ID=your_project_id
    FIREBASE_CLIENT_EMAIL=firebase-adminsdk@...
    FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+   FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+   
+   # Firebase Storage kullanımı için (opsiyonel, varsayılan: local filesystem)
+   USE_FIREBASE_STORAGE=true
+   USE_FIREBASE_PUBLIC_URLS=true  # Public URL'ler için (signed URL yerine)
    ```
    
    `frontend/.env.local` dosyası:
@@ -124,6 +130,9 @@ Proje monorepo yapısında, frontend ve backend ayrı dizinlerde organize edilmi
    FIREBASE_PROJECT_ID=...
    FIREBASE_CLIENT_EMAIL=...
    FIREBASE_PRIVATE_KEY=...
+   FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+   USE_FIREBASE_STORAGE=true
+   USE_FIREBASE_PUBLIC_URLS=true
    ```
 
 ### Frontend - Vercel

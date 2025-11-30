@@ -30,4 +30,5 @@ export const getFirebaseAdminApp = (): admin.app.App => {
 
 export const getFirestore = () => getFirebaseAdminApp().firestore();
 export const getAuth = () => getFirebaseAdminApp().auth();
+export const getStorage = () => getFirebaseAdminApp().storage();
 

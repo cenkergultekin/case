@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { imageSize } from 'image-size';
 import { FalAIService } from './FalAIService';
 import { FileStorageService } from './FileStorageService';
+import { FirebaseStorageService } from './FirebaseStorageService';
 import { FirebasePipelineRepository } from './FirebasePipelineRepository';
 import { PromptService } from './PromptService';
 import { createError } from '../middleware/errorHandler';
@@ -16,13 +17,26 @@ import {
 
 export class ImageService {
   private falAIService: FalAIService;
-  private storageService: FileStorageService;
+  private storageService: FileStorageService | FirebaseStorageService;
   private pipelineRepository: FirebasePipelineRepository;
   private promptService: PromptService;
 
   constructor() {
     this.falAIService = new FalAIService();
-    this.storageService = new FileStorageService();
+    
+    // Use Firebase Storage if enabled, otherwise use local filesystem
+    const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+    if (useFirebaseStorage) {
+      try {
+        this.storageService = new FirebaseStorageService();
+      } catch (error) {
+        console.warn('Failed to initialize Firebase Storage, falling back to local storage:', error);
+        this.storageService = new FileStorageService();
+      }
+    } else {
+      this.storageService = new FileStorageService();
+    }
+    
     this.pipelineRepository = new FirebasePipelineRepository();
     this.promptService = new PromptService();
   }

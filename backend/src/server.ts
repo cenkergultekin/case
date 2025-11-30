@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import { join } from 'path';
 import { errorHandler } from './middleware/errorHandler';
 import { imageRoutes } from './routes/imageRoutes';
 import { healthRoutes } from './routes/healthRoutes';
@@ -71,21 +72,35 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static file serving for uploads - CORS headers ile
+// Use the same upload directory path as FileStorageService
+const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+
 app.use('/api/uploads', (req, res, next) => {
   // CORS headers for static files
   const origin = req.headers.origin;
   const allowedOrigins = getAllowedOrigins();
   
-  // Allow requests from allowed origins or in development
-  if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+  // Always set CORS headers for image requests (browsers need this)
+  if (!origin || allowedOrigins.includes(origin) || origin?.startsWith('http://localhost:') || origin?.startsWith('http://127.0.0.1:')) {
     res.setHeader('Access-Control-Allow-Origin', origin || allowedOrigins[0] || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  } else if (process.env.NODE_ENV === 'production') {
+    // In production, allow from any allowed origin
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   }
   
   next();
-}, express.static('uploads'));
+}, express.static(uploadDir, {
+  // Add cache headers for better performance
+  maxAge: '1y',
+  etag: true,
+  lastModified: true
+}));
 
 // Root route - Welcome message
 app.get('/', (req, res) => {

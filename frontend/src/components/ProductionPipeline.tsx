@@ -1218,16 +1218,26 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                                   )}
                                   onError={(e) => {
                                     const normalizedUrl = normalizeImageUrl(version.url, version.filename);
-                                    console.error('Failed to load processed image:', {
-                                      original: version.url,
-                                      normalized: normalizedUrl,
-                                      filename: version.filename
-                                    });
-                                    // Try to reload with normalized URL
-                                    if (normalizedUrl && normalizedUrl !== version.url) {
+                                    const currentSrc = e.currentTarget.src;
+                                    
+                                    // Try to reload with normalized URL if different
+                                    if (normalizedUrl && normalizedUrl !== currentSrc && normalizedUrl !== version.url) {
                                       e.currentTarget.src = normalizedUrl;
-                                    } else {
+                                      return; // Don't hide yet, let it try the normalized URL
+                                    }
+                                    
+                                    // If already tried normalized URL or no alternative, hide the image
+                                    if (currentSrc === normalizedUrl || !normalizedUrl) {
                                       e.currentTarget.style.display = 'none';
+                                      // Log error only in development
+                                      if (process.env.NODE_ENV === 'development') {
+                                        console.error('Failed to load processed image:', {
+                                          original: version.url,
+                                          normalized: normalizedUrl,
+                                          filename: version.filename,
+                                          attemptedSrc: currentSrc
+                                        });
+                                      }
                                     }
                                   }}
                                 />
