@@ -5,11 +5,6 @@ import { fetchIdToken } from '@/lib/authClient';
 // Get API URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
-// Debug: Log API URL in development (will be removed in production build)
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  console.log('API Base URL:', API_BASE_URL);
-}
-
 // Helper function
 export const getImageUrl = (filename: string) => {
   const baseUrl = API_BASE_URL.replace('/api', '');
@@ -32,7 +27,6 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
     // Extract filename from URL or use provided filename
     const extractedFilename = url.split('/').pop() || filename || '';
     const normalized = `${baseUrl}/api/uploads/${extractedFilename}`;
-    console.log('🔧 Normalized localhost URL:', { from: url, to: normalized });
     return normalized;
   }
   

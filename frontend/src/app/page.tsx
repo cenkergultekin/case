@@ -91,30 +91,20 @@ export default function Home() {
     // For original image processing, sourceId will be the original image ID
     // Use provided processingIds if available, otherwise generate them
     const ids = processingInfo.processingIds || processingInfo.angles.map((_, index) => `processing-${Date.now()}-${index}`);
-    const newProcessingImages = processingInfo.angles.map((angle, index) => ({
-      id: ids[index],
-      startTime: Date.now(),
-      angle,
-      sourceId: processingInfo.sourceId || selectedImage?.id || '', // Use provided sourceId
-      sourceVersionId: processingInfo.sourceId !== selectedImage?.id ? processingInfo.sourceId : undefined // Track if it's a version ID
-    }));
-    
-    // Debug log
-    console.log('🟢 handleProcessingStart called:', {
-      processingInfo,
-      newProcessingImages,
-      selectedImageId: selectedImage?.id
+    const newProcessingImages = processingInfo.angles.map((angle, index) => {
+      const sourceId = processingInfo.sourceId || selectedImage?.id || '';
+      const sourceVersionId = processingInfo.sourceId !== selectedImage?.id ? processingInfo.sourceId : undefined;
+      
+      return {
+        id: ids[index],
+        startTime: Date.now(),
+        angle,
+        sourceId,
+        ...(sourceVersionId && { sourceVersionId })
+      };
     });
     
-    setProcessingImages(prev => {
-      const updated = [...prev, ...newProcessingImages];
-      console.log('🟢 Processing images updated:', {
-        prevCount: prev.length,
-        newCount: updated.length,
-        all: updated
-      });
-      return updated;
-    });
+    setProcessingImages(prev => [...prev, ...newProcessingImages]);
   };
 
   const handleProcessingError = (processingIds: string[]) => {
@@ -123,13 +113,6 @@ export default function Home() {
   };
 
   const handleProcessComplete = (processedVersion: any) => {
-    // Debug log
-    console.log('🟢 handleProcessComplete called:', {
-      processedVersion,
-      selectedImageId: selectedImage?.id,
-      currentProcessingCount: processingImages.length
-    });
-    
     // Normalize URL if it contains localhost
     if (processedVersion?.url && processedVersion.url.includes('localhost')) {
       processedVersion.url = normalizeImageUrl(processedVersion.url, processedVersion.filename);
@@ -169,7 +152,6 @@ export default function Home() {
           });
           
           if (matchingIndex !== -1) {
-            console.log('🟢 Removing processing image:', matchingIndex);
             return processingPrev.filter((_, index) => index !== matchingIndex);
           }
           return processingPrev;

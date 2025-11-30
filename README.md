@@ -1,60 +1,173 @@
-# Imageflow Case v1.0
+# ImageFlow - AI Destekli Görsel İşleme Platformu
 
-Modular repo for experimenting with image workflows. The project splits UI and server concerns into dedicated packages to keep responsibilities clear and extensible.
+ImageFlow, AI modelleri kullanarak görsellerinizi farklı açılardan üretmenize ve iyileştirmenize olanak sağlayan modern bir görsel işleme platformudur. Sistem, karakter tutarlılığını koruyarak görsel dönüşümleri gerçekleştirir.
 
-## Structure
+## 🎯 Proje Amacı
 
-- `frontend/` – Next.js (TypeScript, App Router) client with upload UI and API route proxy.
-- `backend/` – Node.js + Express service that will host fal.ai integration logic.
+ImageFlow, e-ticaret, pazarlama ve içerik üretimi gibi alanlarda kullanılmak üzere, ürün görsellerini farklı açılardan otomatik olarak üretmeyi hedefler. AI destekli işleme ile manuel çekim maliyetlerini azaltır ve hızlı içerik üretimi sağlar.
 
-## Environment
+### Temel Özellikler
 
-Both packages rely on an API credential for fal.ai and now Firebase for Auth + Firestore persistence. Create a root `.env` (or copy from `.env.example`) with:
+- **Çoklu AI Model Desteği**: Seedream, Nano Banana, Flux 2 Multi Angles
+- **Akıllı Açı Yönetimi**: 8 farklı açı (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°)
+- **Otomatik Prompt Üretimi**: Açı değişimleri için otomatik prompt oluşturma
+- **Akıllı Asistan**: OpenRouter tabanlı görsel analiz ve düzeltme önerileri
+- **Pipeline Yönetimi**: Hiyerarşik görsel üretim zinciri takibi
+- **Maliyet Hesaplama**: Gerçek zamanlı üretim maliyeti gösterimi
 
-```
-FAL_SUBSCRIBER_KEY=your_fal_ai_key
-BACKEND_PORT=4000
-FRONTEND_PORT=3000
-FRONTEND_URL=http://localhost:3000
-OPENROUTER_API_KEY=your_openrouter_key
-OPENROUTER_MODEL=meta-llama/llama-3.2-90b-vision-instruct  # Smart assistant model
-PROMPT_ASSISTANT_SYSTEM_PROMPT="Custom system prompt for the smart assistant"
-PROMPT_ASSISTANT_EMBEDDED_PROMPT="Additional context appended to each request"
-```
+## 🏗️ Mimari
 
-### Firebase (Backend / Admin SDK)
+Proje monorepo yapısında, frontend ve backend ayrı dizinlerde organize edilmiştir.
 
-```
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk@your_project_id.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-```
+### Backend (Render)
 
-> **Note:** Copy the service-account JSON from the Firebase console and map fields to the env vars above. Remember to escape newline characters (`\n`) if you store the key on one line.
+- **Platform**: [Render](https://render.com)
+- **Teknoloji**: Node.js + Express.js + TypeScript
+- **Dizin**: `backend/`
+- **Deployment**: `render.yaml` ile otomatik deploy
+- **Özellikler**:
+  - RESTful API endpoints
+  - Firebase Authentication entegrasyonu
+  - Firestore veritabanı ile veri kalıcılığı
+  - fal.ai AI servisleri entegrasyonu
+  - OpenRouter API entegrasyonu
+  - Statik dosya servisi (`/api/uploads`)
 
-### Firebase (Frontend SDK)
+### Frontend (Vercel)
 
-Create `frontend/.env.local` (or extend an existing one) with:
+- **Platform**: [Vercel](https://vercel.com)
+- **Teknoloji**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- **Dizin**: `frontend/`
+- **Deployment**: Vercel otomatik Next.js algılama
+- **Özellikler**:
+  - Modern, responsive UI
+  - Firebase Authentication
+  - Gerçek zamanlı işleme durumu takibi
+  - Drag & drop görsel yükleme
+  - Pipeline görselleştirme
 
-```
-NEXT_PUBLIC_API_URL=http://localhost:4000/api
-NEXT_PUBLIC_FIREBASE_API_KEY=your_web_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-```
+## 🚀 Hızlı Başlangıç
 
-Each package will load the variables it needs via its own tooling. Keep secrets out of version control. The backend now persists pipeline hierarchies (original uploads + processed versions) inside Firestore, scoped per Firebase Auth user.
+### Gereksinimler
 
-## Getting Started
+- Node.js >= 18.0.0
+- npm >= 9.0.0
+- Firebase projesi
+- fal.ai API anahtarı
+- OpenRouter API anahtarı
 
-1. Install dependencies once the package scaffolds exist:
-   - `cd frontend && npm install`
-   - `cd backend && npm install`
-2. Run backend server first so the frontend proxy can forward requests.
-3. Start the frontend dev server to interact with the UI.
+### Yerel Geliştirme
 
-More detailed run instructions live inside each package README.
+1. **Bağımlılıkları yükleyin**:
+   ```bash
+   # Backend
+   cd backend
+   npm install
+   
+   # Frontend
+   cd ../frontend
+   npm install
+   ```
 
+2. **Environment değişkenlerini ayarlayın**:
+   
+   Root `.env` dosyası:
+   ```env
+   FAL_SUBSCRIBER_KEY=your_fal_ai_key
+   BACKEND_PORT=4000
+   FRONTEND_URL=http://localhost:3000
+   OPENROUTER_API_KEY=your_openrouter_key
+   FIREBASE_PROJECT_ID=your_project_id
+   FIREBASE_CLIENT_EMAIL=firebase-adminsdk@...
+   FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+   ```
+   
+   `frontend/.env.local` dosyası:
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:4000/api
+   NEXT_PUBLIC_FIREBASE_API_KEY=your_web_api_key
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+   ```
+
+3. **Servisleri başlatın**:
+   ```bash
+   # Backend (terminal 1)
+   cd backend
+   npm run dev
+   
+   # Frontend (terminal 2)
+   cd frontend
+   npm run dev
+   ```
+
+## 📦 Deployment
+
+### Backend - Render
+
+1. Render dashboard'da yeni bir **Web Service** oluşturun
+2. GitHub repository'nizi bağlayın
+3. Ayarlar:
+   - **Root Directory**: `backend`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+4. Environment Variables:
+   ```
+   NODE_ENV=production
+   FRONTEND_URL=https://your-vercel-app.vercel.app
+   BASE_URL=https://your-render-app.onrender.com
+   FAL_SUBSCRIBER_KEY=...
+   OPENROUTER_API_KEY=...
+   FIREBASE_PROJECT_ID=...
+   FIREBASE_CLIENT_EMAIL=...
+   FIREBASE_PRIVATE_KEY=...
+   ```
+
+### Frontend - Vercel
+
+1. Vercel dashboard'da yeni bir proje oluşturun
+2. GitHub repository'nizi bağlayın
+3. Ayarlar:
+   - **Framework Preset**: Next.js
+   - **Root Directory**: `frontend`
+4. Environment Variables:
+   ```
+   NEXT_PUBLIC_API_URL=https://your-render-app.onrender.com/api
+   NEXT_PUBLIC_FIREBASE_API_KEY=...
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+   NEXT_PUBLIC_FIREBASE_APP_ID=...
+   ```
+
+## 🛠️ Teknoloji Stack
+
+### Backend
+- **Runtime**: Node.js + TypeScript
+- **Framework**: Express.js
+- **Database**: Firebase Firestore
+- **Authentication**: Firebase Admin SDK
+- **AI Services**: fal.ai SDK, OpenRouter API
+- **File Storage**: Local filesystem + Firebase Storage
+
+### Frontend
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Authentication**: Firebase Auth
+- **HTTP Client**: Axios
+- **Icons**: Lucide React
+
+## 📚 Daha Fazla Bilgi
+
+- [Kullanım Kılavuzu](./KULLANIM_KILAVUZU.md) - Detaylı kullanım talimatları
+- [Backend README](./backend/README.md) - Backend API dokümantasyonu
+- [Frontend README](./frontend/README.md) - Frontend component dokümantasyonu
+
+## 📄 Lisans
+
+Bu proje özel bir projedir.

@@ -62,14 +62,6 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
   
   // Track processing images and remove them when they complete
   useEffect(() => {
-    // Debug log
-    console.log('🟡 ProductionPipeline useEffect triggered:', {
-      processingImagesCount: processingImages.length,
-      processingImages,
-      processedVersionsCount: image.processedVersions?.length || 0,
-      imageId: image.id
-    });
-    
     const currentVersions = image.processedVersions || [];
     const currentVersionIds = new Set(currentVersions.map(v => v.id));
     const previousVersionIds = previousProcessedVersionsRef.current;
@@ -176,14 +168,6 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
     
     // Add new processing images from prop
     // Always sync processingImages prop with processingStates Map
-    // Debug: Log before setProcessingStates
-    console.log('🟡 Before setProcessingStates:', {
-      processingImagesLength: processingImages.length,
-      processingImages,
-      imageId: image.id,
-      currentVersionsCount: currentVersions.length
-    });
-    
     setProcessingStates(prev => {
       const updated = new Map(prev);
       
@@ -196,24 +180,11 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
       }
       
       // Add new processing images from prop
-      console.log('🟡 Inside setProcessingStates, processingImages.length:', processingImages.length);
-      
       if (processingImages.length === 0) {
-        console.log('🟡 No processing images to process');
         return updated;
       }
       
-      processingImages.forEach((processing, index) => {
-        // Debug log
-        console.log(`🟡 Processing item check [${index}]:`, {
-          processing,
-          imageId: image.id,
-          sourceId: processing.sourceId,
-          sourceVersionId: (processing as any).sourceVersionId,
-          currentVersionsCount: currentVersions.length,
-          sourceIdMatch: processing.sourceId === image.id
-        });
-        
+      processingImages.forEach((processing) => {
         // Add processing if:
         // 1. It's for the original image (sourceId === image.id), OR
         // 2. It's for a processed version of this image (sourceVersionId exists and matches a version)
@@ -222,16 +193,8 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
         const isForProcessedVersion = sourceVersionId && 
           currentVersions.some(v => v.id === sourceVersionId);
         
-        console.log(`🟡 Processing item checks [${index}]:`, {
-          isForOriginalImage,
-          isForProcessedVersion,
-          sourceVersionId,
-          willSkip: !isForOriginalImage && !isForProcessedVersion
-        });
-        
         // Skip if not related to this image at all
         if (!isForOriginalImage && !isForProcessedVersion) {
-          console.log(`🟡 Skipping processing item [${index}] (not for this image)`);
           return;
         }
         
@@ -249,8 +212,6 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
           return sourceMatches && angleMatches;
         });
         
-        console.log(`🟡 Processing item [${index}] isCompleted:`, isCompleted);
-        
         // Always add if not completed - this ensures new processing shows up immediately
         // Force update even if already exists to ensure state is fresh
         if (!isCompleted) {
@@ -258,13 +219,9 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
             ...processing,
             startTime: processing.startTime || Date.now()
           });
-          console.log('🟡 Added processing state:', processing.id, processing);
-        } else {
-          console.log(`🟡 Skipping processing item [${index}] (already completed)`);
         }
       });
       
-      console.log('🟡 Final processingStates size:', updated.size, Array.from(updated.keys()));
       return updated;
     });
     

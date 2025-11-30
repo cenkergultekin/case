@@ -307,13 +307,6 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
     const processingIds = anglesToProcess.map((_, index) => `processing-${Date.now()}-${index}`);
     
     // Notify parent about processing start with IDs
-    console.log('🟢 ImageProcessor: Calling onProcessingStart', {
-      angles: anglesToProcess,
-      sourceId: selectedSourceVersion || image.id,
-      processingIds,
-      hasCallback: !!onProcessingStart
-    });
-    
     onProcessingStart?.({
       angles: anglesToProcess,
       sourceId: selectedSourceVersion || image.id,
