@@ -78,6 +78,14 @@ export class FirebasePipelineRepository {
       return null;
     }
 
+    // Get URL from Firestore or construct it if missing (for backward compatibility)
+    let imageUrl = data.url;
+    if (!imageUrl && data.filename) {
+      // Construct URL based on storage type
+      const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+      imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+    }
+
     const baseMetadata: ImageMetadata = {
       id: doc.id,
       originalName: data.originalName,
@@ -88,19 +96,25 @@ export class FirebasePipelineRepository {
       height: data.height,
       uploadedAt: this.toDate(data.uploadedAt),
       processedVersions: [],
-      ...(data.url && { url: data.url }) // Include URL if available
+      ...(imageUrl && { url: imageUrl }) // Include URL if available
     };
 
     const versionsSnapshot = await docRef.collection('versions').orderBy('createdAt', 'asc').get();
     const versions: ProcessedVersion[] = versionsSnapshot.docs.map((versionDoc: admin.firestore.QueryDocumentSnapshot) => {
       const versionData = versionDoc.data();
+      // Get URL from Firestore or construct it if missing (for backward compatibility)
+      let versionUrl = versionData.url;
+      if (!versionUrl && versionData.filename) {
+        const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+        versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+      }
       return {
         id: versionDoc.id,
         operation: versionData.operation,
         aiModel: versionData.aiModel,
         parameters: versionData.parameters,
         filename: versionData.filename,
-        url: versionData.url,
+        url: versionUrl || '',
         size: versionData.size || 0,
         createdAt: this.toDate(versionData.createdAt),
         processingTimeMs: versionData.processingTimeMs,
@@ -142,13 +156,19 @@ export class FirebasePipelineRepository {
           const versionsSnapshot = await docSnapshot.ref.collection('versions').orderBy('createdAt', 'asc').get();
           const versions: ProcessedVersion[] = versionsSnapshot.docs.map((versionDoc: admin.firestore.QueryDocumentSnapshot) => {
             const versionData = versionDoc.data();
+            // Get URL from Firestore or construct it if missing (for backward compatibility)
+            let versionUrl = versionData.url;
+            if (!versionUrl && versionData.filename) {
+              const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+              versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+            }
             return {
               id: versionDoc.id,
               operation: versionData.operation,
               aiModel: versionData.aiModel,
               parameters: versionData.parameters,
               filename: versionData.filename,
-              url: versionData.url,
+              url: versionUrl || '',
               size: versionData.size || 0,
               createdAt: this.toDate(versionData.createdAt),
               processingTimeMs: versionData.processingTimeMs,
@@ -157,12 +177,20 @@ export class FirebasePipelineRepository {
             };
           });
 
+          // Get URL from Firestore or construct it if missing (for backward compatibility)
+          let imageUrl = data.url;
+          if (!imageUrl && data.filename) {
+            // Construct URL based on storage type
+            const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+            imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+          }
+
           return {
             id: docSnapshot.id,
             userId: data.userId,
             originalName: data.originalName,
             filename: data.filename,
-            ...(data.url && { url: data.url }), // Include URL if available
+            ...(imageUrl && { url: imageUrl }), // Include URL if available
             mimetype: data.mimetype,
             size: data.size,
             width: data.width,

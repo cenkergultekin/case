@@ -13,11 +13,11 @@ export const getImageUrl = (filename: string) => {
 
 // Helper function to normalize image URLs (fixes localhost URLs from backend)
 export const normalizeImageUrl = (url: string | undefined, filename?: string): string => {
-  // If no URL provided, use filename
-  if (!url && filename) {
-    return getImageUrl(filename);
-  }
+  // If no URL provided, construct URL from filename
   if (!url) {
+    if (filename) {
+      return getImageUrl(filename);
+    }
     return '';
   }
   
@@ -50,7 +50,7 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
     return getImageUrl(filename);
   }
   
-  // Fallback: use filename if provided
+  // Fallback: use filename if provided, otherwise return the URL as is
   if (filename) {
     return getImageUrl(filename);
   }

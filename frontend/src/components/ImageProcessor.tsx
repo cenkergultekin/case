@@ -513,7 +513,7 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
               }
               return (
                 <img
-                  src={getImageUrl(image.filename)}
+                  src={normalizeImageUrl(image.url, image.filename)}
                   alt={image.originalName}
                   className="w-full h-full object-contain"
                   onError={(e) => {
