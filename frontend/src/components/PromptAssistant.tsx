@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Loader2, Sparkles, Wand2 } from 'lucide-react';
-import { imageAPI, getImageUrl } from '@/lib/api';
+import { imageAPI, getImageUrl, normalizeImageUrl } from '@/lib/api';
 import { Button } from './ui/Button';
 import { cn } from '@/lib/utils';
 
@@ -49,10 +49,7 @@ export function PromptAssistant({
 
   const referenceImageUrl = React.useMemo(() => {
     if (!selectedVersion) return '';
-    if (selectedVersion.url?.includes('/api/uploads/')) {
-      return selectedVersion.url;
-    }
-    return getImageUrl(selectedVersion.filename);
+    return normalizeImageUrl(selectedVersion.url, selectedVersion.filename);
   }, [selectedVersion]);
 
   // For nested source support: if selected version has its own source, use that as "original"
@@ -61,10 +58,7 @@ export function PromptAssistant({
     if (selectedVersion.sourceProcessedVersionId && allProcessedVersions.length > 0) {
       const sourceVersion = allProcessedVersions.find(v => v.id === selectedVersion.sourceProcessedVersionId);
       if (sourceVersion) {
-        if (sourceVersion.url?.includes('/api/uploads/')) {
-          return sourceVersion.url;
-        }
-        return getImageUrl(sourceVersion.filename);
+        return normalizeImageUrl(sourceVersion.url, sourceVersion.filename);
       }
     }
     // Otherwise, use the original image

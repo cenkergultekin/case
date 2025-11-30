@@ -16,13 +16,23 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
   // If no URL provided, construct URL from filename
   if (!url) {
     if (filename) {
-      return getImageUrl(filename);
+      const constructedUrl = getImageUrl(filename);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('normalizeImageUrl: No URL provided, constructed from filename:', { filename, constructedUrl });
+      }
+      return constructedUrl;
+    }
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('normalizeImageUrl: No URL and no filename provided');
     }
     return '';
   }
   
   // PRIORITY 1: Firebase Storage URLs - use as is (public or signed URLs)
   if (url.includes('firebasestorage.googleapis.com') || url.includes('storage.googleapis.com')) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('normalizeImageUrl: Firebase Storage URL detected, using as is:', url);
+    }
     return url;
   }
   
@@ -32,29 +42,49 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
     // Extract filename from URL or use provided filename
     const extractedFilename = url.split('/').pop() || filename || '';
     const normalized = `${baseUrl}/api/uploads/${extractedFilename}`;
+    if (process.env.NODE_ENV === 'development') {
+      console.log('normalizeImageUrl: Localhost URL normalized:', { original: url, normalized });
+    }
     return normalized;
   }
   
   // PRIORITY 3: If URL already contains /api/uploads/ and is a valid HTTPS URL, use it as is
   if (url.includes('/api/uploads/') && url.startsWith('https://')) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('normalizeImageUrl: Valid backend URL, using as is:', url);
+    }
     return url;
   }
   
   // PRIORITY 4: If URL is a valid HTTPS URL (but not Firebase Storage), use it as is
   if (url.startsWith('https://') || url.startsWith('http://')) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('normalizeImageUrl: Valid HTTP(S) URL, using as is:', url);
+    }
     return url;
   }
   
   // PRIORITY 5: If URL is just a filename (no protocol), construct full URL
   if (!url.includes('://') && filename) {
-    return getImageUrl(filename);
+    const constructedUrl = getImageUrl(filename);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('normalizeImageUrl: Filename without protocol, constructed URL:', { url, filename, constructedUrl });
+    }
+    return constructedUrl;
   }
   
   // Fallback: use filename if provided, otherwise return the URL as is
   if (filename) {
-    return getImageUrl(filename);
+    const constructedUrl = getImageUrl(filename);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('normalizeImageUrl: Fallback to filename:', { url, filename, constructedUrl });
+    }
+    return constructedUrl;
   }
   
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('normalizeImageUrl: Returning URL as is (no normalization):', url);
+  }
   return url;
 };
 

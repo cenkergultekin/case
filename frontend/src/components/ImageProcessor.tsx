@@ -505,19 +505,49 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                       alt={sourceVersion.operation}
                       className="w-full h-full object-contain"
                       onError={(e) => {
-                        e.currentTarget.style.display = 'none';
+                        if (process.env.NODE_ENV === 'development') {
+                          console.error('ImageProcessor: Failed to load source version:', {
+                            originalUrl: sourceVersion.url,
+                            normalizedUrl: imageUrl,
+                            filename: sourceVersion.filename,
+                            attemptedSrc: e.currentTarget.src
+                          });
+                        }
+                        // Don't hide, show placeholder instead
+                        e.currentTarget.style.opacity = '0.3';
+                      }}
+                      onLoad={() => {
+                        if (process.env.NODE_ENV === 'development') {
+                          console.log('ImageProcessor: Source version loaded successfully:', imageUrl);
+                        }
                       }}
                     />
                   );
                 }
               }
+              const imageUrl = normalizeImageUrl(image.url, image.filename);
               return (
                 <img
-                  src={normalizeImageUrl(image.url, image.filename)}
+                  src={imageUrl}
                   alt={image.originalName}
                   className="w-full h-full object-contain"
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                    if (process.env.NODE_ENV === 'development') {
+                      console.error('ImageProcessor: Failed to load image:', {
+                        originalUrl: image.url,
+                        normalizedUrl: imageUrl,
+                        filename: image.filename,
+                        attemptedSrc: e.currentTarget.src
+                      });
+                    }
+                    // Don't hide, show placeholder instead
+                    e.currentTarget.style.opacity = '0.3';
+                  }}
+                  onLoad={() => {
+                    // Image loaded successfully
+                    if (process.env.NODE_ENV === 'development') {
+                      console.log('ImageProcessor: Image loaded successfully:', imageUrl);
+                    }
                   }}
                 />
               );

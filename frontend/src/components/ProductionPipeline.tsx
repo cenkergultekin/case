@@ -47,7 +47,7 @@ interface ProductionPipelineProps {
 }
 
 export function ProductionPipeline({ image, onSelectAsSource, onBack, processingImages = [], onDeleteVersion }: ProductionPipelineProps) {
-  const originalImageUrl = getImageUrl(image.filename);
+  const originalImageUrl = normalizeImageUrl(image.url, image.filename) || getImageUrl(image.filename);
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string; filename?: string } | null>(null);
   const [processingStates, setProcessingStates] = useState<Map<string, ProcessingImage>>(new Map());
@@ -341,9 +341,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
           }
         : {
             id: node.version.id,
-            url: (node.version as ProcessedVersion).url?.includes('/api/uploads/')
-              ? (node.version as ProcessedVersion).url
-              : getImageUrl((node.version as ProcessedVersion).filename),
+            url: normalizeImageUrl((node.version as ProcessedVersion).url, (node.version as ProcessedVersion).filename),
             name: `${(node.version as ProcessedVersion).aiModel || 'AI'} - ${(node.version as ProcessedVersion).operation.replace(/-/g, ' ')}`,
             filename: (node.version as ProcessedVersion).filename
           };
@@ -672,7 +670,20 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                     alt="Reference"
                     className="w-full h-full object-cover pointer-events-none"
                     onError={(e) => {
+                      if (process.env.NODE_ENV === 'development') {
+                        console.error('ProductionPipeline: Failed to load reference image:', {
+                          originalUrl: image.url,
+                          normalizedUrl: originalImageUrl,
+                          filename: image.filename,
+                          attemptedSrc: e.currentTarget.src
+                        });
+                      }
                       e.currentTarget.style.display = 'none';
+                    }}
+                    onLoad={() => {
+                      if (process.env.NODE_ENV === 'development') {
+                        console.log('ProductionPipeline: Reference image loaded successfully:', originalImageUrl);
+                      }
                     }}
                   />
                 </div>
@@ -1131,11 +1142,24 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                         >
                           <div className="w-full h-full overflow-hidden rounded-xl">
                             <img
-                              src={pipeline.source.url}
+                              src={normalizeImageUrl(pipeline.source.url, pipeline.source.filename)}
                               alt={pipeline.source.name}
                               className="w-full h-full object-cover pointer-events-none"
                               onError={(e) => {
+                                if (process.env.NODE_ENV === 'development') {
+                                  console.error('ProductionPipeline: Failed to load source image:', {
+                                    originalUrl: pipeline.source.url,
+                                    normalizedUrl: normalizeImageUrl(pipeline.source.url, pipeline.source.filename),
+                                    filename: pipeline.source.filename,
+                                    attemptedSrc: e.currentTarget.src
+                                  });
+                                }
                                 e.currentTarget.style.display = 'none';
+                              }}
+                              onLoad={() => {
+                                if (process.env.NODE_ENV === 'development') {
+                                  console.log('ProductionPipeline: Source image loaded successfully:', normalizeImageUrl(pipeline.source.url, pipeline.source.filename));
+                                }
                               }}
                             />
                           </div>
@@ -1198,9 +1222,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                                 if ((e.target as HTMLElement).closest('button')) {
                                   return;
                                 }
-                                const imageUrl = version.url?.includes('/api/uploads/')
-                                  ? version.url
-                                  : getImageUrl(version.filename);
+                                const imageUrl = normalizeImageUrl(version.url, version.filename);
                                 setPreviewImage({ 
                                   url: imageUrl, 
                                   name: `${version.operation} - ${angle || 'processed'}°`,

@@ -244,7 +244,21 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
                         alt={version.operation}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                         onError={(e) => {
-                          e.currentTarget.style.display = 'none';
+                          if (process.env.NODE_ENV === 'development') {
+                            console.error('ProcessedImagesGallery: Failed to load image:', {
+                              originalUrl: version.url,
+                              normalizedUrl: normalizeImageUrl(version.url, version.filename),
+                              filename: version.filename,
+                              attemptedSrc: e.currentTarget.src
+                            });
+                          }
+                          // Don't hide, show placeholder instead
+                          e.currentTarget.style.opacity = '0.3';
+                        }}
+                        onLoad={() => {
+                          if (process.env.NODE_ENV === 'development') {
+                            console.log('ProcessedImagesGallery: Image loaded successfully');
+                          }
                         }}
                       />
                       
