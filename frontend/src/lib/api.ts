@@ -28,10 +28,31 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
     return '';
   }
   
-  // PRIORITY 1: Firebase Storage URLs - use as is (public or signed URLs)
+  // PRIORITY 1: Firebase Storage URLs - convert to backend proxy URL to avoid CORS issues
   if (url.includes('firebasestorage.googleapis.com') || url.includes('storage.googleapis.com')) {
+    // Extract filename from Firebase Storage URL or use provided filename
+    let extractedFilename = filename;
+    if (!extractedFilename) {
+      // Try to extract filename from Firebase Storage URL
+      // Format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media
+      const match = url.match(/\/o\/([^?]+)/);
+      if (match) {
+        extractedFilename = decodeURIComponent(match[1]).replace(/^uploads\//, '');
+      }
+    }
+    
+    if (extractedFilename) {
+      // Use backend proxy endpoint to avoid CORS issues
+      const proxyUrl = getImageUrl(extractedFilename);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('normalizeImageUrl: Firebase Storage URL converted to proxy URL:', { original: url, proxy: proxyUrl, filename: extractedFilename });
+      }
+      return proxyUrl;
+    }
+    
+    // Fallback: use original URL if filename cannot be extracted
     if (process.env.NODE_ENV === 'development') {
-      console.log('normalizeImageUrl: Firebase Storage URL detected, using as is:', url);
+      console.warn('normalizeImageUrl: Firebase Storage URL detected but filename cannot be extracted, using as is:', url);
     }
     return url;
   }

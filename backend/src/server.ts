@@ -75,32 +75,80 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Use the same upload directory path as FileStorageService
 const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
 
-app.use('/api/uploads', (req, res, next) => {
-  // CORS headers for static files
+// Proxy endpoint for Firebase Storage files (to avoid CORS issues)
+// This must come BEFORE express.static middleware
+app.get('/api/uploads/:filename', async (req, res, next) => {
+  const { filename } = req.params;
   const origin = req.headers.origin;
   const allowedOrigins = getAllowedOrigins();
   
-  // Always set CORS headers for image requests (browsers need this)
+  // Set CORS headers
   if (!origin || allowedOrigins.includes(origin) || origin?.startsWith('http://localhost:') || origin?.startsWith('http://127.0.0.1:')) {
     res.setHeader('Access-Control-Allow-Origin', origin || allowedOrigins[0] || '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   } else if (process.env.NODE_ENV === 'production') {
-    // In production, allow from any allowed origin
     res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   }
   
-  next();
-}, express.static(uploadDir, {
-  // Add cache headers for better performance
-  maxAge: '1y',
-  etag: true,
-  lastModified: true
-}));
+  // Check if Firebase Storage is enabled
+  const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+  
+  if (useFirebaseStorage) {
+    try {
+      const { FirebaseStorageService } = await import('./services/FirebaseStorageService');
+      const storageService = new FirebaseStorageService();
+      const buffer = await storageService.getFile(filename);
+      
+      // Determine content type from filename
+      const ext = filename.split('.').pop()?.toLowerCase();
+      const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 
+                          ext === 'png' ? 'image/png' : 
+                          ext === 'webp' ? 'image/webp' : 
+                          ext === 'gif' ? 'image/gif' : 'application/octet-stream';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
+      res.send(buffer);
+      return;
+    } catch (error) {
+      console.error(`Failed to get file from Firebase Storage: ${filename}`, error);
+      // Fall through to local filesystem check
+    }
+  }
+  
+  // Fallback to local filesystem
+  const filePath = join(uploadDir, filename);
+  const fs = await import('fs/promises');
+  
+  try {
+    const stats = await fs.stat(filePath);
+    if (!stats.isFile()) {
+      res.status(404).json({ success: false, message: 'File not found' });
+      return;
+    }
+    
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 
+                        ext === 'png' ? 'image/png' : 
+                        ext === 'webp' ? 'image/webp' : 
+                        ext === 'gif' ? 'image/gif' : 'application/octet-stream';
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', stats.size);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
+    
+    const fileBuffer = await fs.readFile(filePath);
+    res.send(fileBuffer);
+  } catch (error) {
+    res.status(404).json({ success: false, message: 'File not found' });
+  }
+});
 
 // Root route - Welcome message
 app.get('/', (req, res) => {
