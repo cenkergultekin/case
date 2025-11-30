@@ -1,5 +1,6 @@
 import { FirebasePipelineRepository } from './FirebasePipelineRepository';
 import { FileStorageService } from './FileStorageService';
+import { FirebaseStorageService } from './FirebaseStorageService';
 import { OpenRouterService, PromptAssistantResult } from './OpenRouterService';
 import { createError } from '../middleware/errorHandler';
 
@@ -10,13 +11,26 @@ interface GenerateAssistantPromptOptions {
 
 export class PromptAssistantService {
   private readonly pipelineRepository: FirebasePipelineRepository;
-  private readonly fileStorageService: FileStorageService;
+  private readonly storageService: FileStorageService | FirebaseStorageService;
   private readonly openRouterService: OpenRouterService;
   private readonly embeddedPrompt?: string;
 
   constructor() {
     this.pipelineRepository = new FirebasePipelineRepository();
-    this.fileStorageService = new FileStorageService();
+    
+    // Use Firebase Storage if enabled, otherwise use local filesystem
+    const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+    if (useFirebaseStorage) {
+      try {
+        this.storageService = new FirebaseStorageService();
+      } catch (error) {
+        console.warn('Failed to initialize Firebase Storage in PromptAssistantService, falling back to local storage:', error);
+        this.storageService = new FileStorageService();
+      }
+    } else {
+      this.storageService = new FileStorageService();
+    }
+    
     this.openRouterService = new OpenRouterService();
     this.embeddedPrompt = process.env.PROMPT_ASSISTANT_EMBEDDED_PROMPT;
   }
@@ -38,8 +52,8 @@ export class PromptAssistantService {
     }
 
     const [originalBuffer, processedBuffer] = await Promise.all([
-      this.fileStorageService.getFile(pipeline.filename),
-      this.fileStorageService.getFile(processedVersion.filename)
+      this.storageService.getFile(pipeline.filename),
+      this.storageService.getFile(processedVersion.filename)
     ]);
 
     const originalMime = pipeline.mimetype || 'image/jpeg';
