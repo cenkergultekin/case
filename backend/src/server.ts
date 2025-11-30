@@ -117,6 +117,21 @@ app.get('/', (req, res) => {
   });
 });
 
+// API root route - API information
+app.get('/api', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'ImageFlow API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      images: '/api/images',
+      uploads: '/api/uploads'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/images', imageRoutes);

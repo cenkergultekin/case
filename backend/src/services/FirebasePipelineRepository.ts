@@ -82,8 +82,23 @@ export class FirebasePipelineRepository {
     let imageUrl = data.url;
     if (!imageUrl && data.filename) {
       // Construct URL based on storage type
-      const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-      imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+      const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+      if (useFirebaseStorage) {
+        // Use Firebase Storage URL format
+        const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+        if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
+          imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${data.filename}`)}?alt=media`;
+        } else {
+          // For signed URLs, we need to generate them on-demand
+          // Fallback to base URL for now (should be handled by storage service)
+          const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+          imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+        }
+      } else {
+        // Local filesystem
+        const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+        imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+      }
     }
 
     const baseMetadata: ImageMetadata = {
@@ -105,8 +120,24 @@ export class FirebasePipelineRepository {
       // Get URL from Firestore or construct it if missing (for backward compatibility)
       let versionUrl = versionData.url;
       if (!versionUrl && versionData.filename) {
-        const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-        versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+        // Construct URL based on storage type
+        const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+        if (useFirebaseStorage) {
+          // Use Firebase Storage URL format
+          const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+          if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
+            versionUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${versionData.filename}`)}?alt=media`;
+          } else {
+            // For signed URLs, we need to generate them on-demand
+            // Fallback to base URL for now (should be handled by storage service)
+            const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+            versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+          }
+        } else {
+          // Local filesystem
+          const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+          versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+        }
       }
       return {
         id: versionDoc.id,
@@ -159,8 +190,24 @@ export class FirebasePipelineRepository {
             // Get URL from Firestore or construct it if missing (for backward compatibility)
             let versionUrl = versionData.url;
             if (!versionUrl && versionData.filename) {
-              const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-              versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+              // Construct URL based on storage type
+              const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+              if (useFirebaseStorage) {
+                // Use Firebase Storage URL format
+                const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+                if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
+                  versionUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${versionData.filename}`)}?alt=media`;
+                } else {
+                  // For signed URLs, we need to generate them on-demand
+                  // Fallback to base URL for now (should be handled by storage service)
+                  const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+                  versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+                }
+              } else {
+                // Local filesystem
+                const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+                versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+              }
             }
             return {
               id: versionDoc.id,
@@ -181,8 +228,23 @@ export class FirebasePipelineRepository {
           let imageUrl = data.url;
           if (!imageUrl && data.filename) {
             // Construct URL based on storage type
-            const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-            imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+            const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+            if (useFirebaseStorage) {
+              // Use Firebase Storage URL format
+              const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+              if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
+                imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${data.filename}`)}?alt=media`;
+              } else {
+                // For signed URLs, we need to generate them on-demand
+                // Fallback to base URL for now (should be handled by storage service)
+                const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+                imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+              }
+            } else {
+              // Local filesystem
+              const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+              imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+            }
           }
 
           return {
