@@ -48,7 +48,11 @@ interface ProductionPipelineProps {
 }
 
 export function ProductionPipeline({ image, onSelectAsSource, onBack, processingImages = [], onDeleteVersion }: ProductionPipelineProps) {
-  const originalImageUrl = normalizeImageUrl(image.url, image.filename) || getImageUrl(image.filename);
+  const originalImageUrl = React.useMemo(() => {
+    const normalized = normalizeImageUrl(image.url, image.filename);
+    // If normalizeImageUrl returns empty string, fallback to getImageUrl
+    return normalized || getImageUrl(image.filename);
+  }, [image.url, image.filename]);
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string; filename?: string } | null>(null);
   const [processingStates, setProcessingStates] = useState<Map<string, ProcessingImage>>(new Map());
@@ -336,7 +340,7 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
       const source = isOriginal
         ? {
             id: node.version.id,
-            url: node.version.url,
+            url: normalizeImageUrl(node.version.url, image.filename) || getImageUrl(image.filename),
             name: ('name' in node.version ? node.version.name : 'Original'),
             filename: image.filename
           }
@@ -666,27 +670,46 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                     });
                   }}
                 >
-                  <img
-                    src={originalImageUrl}
-                    alt="Reference"
-                    className="w-full h-full object-cover pointer-events-none"
-                    onError={(e) => {
-                      if (process.env.NODE_ENV === 'development') {
-                        console.error('ProductionPipeline: Failed to load reference image:', {
-                          originalUrl: image.url,
-                          normalizedUrl: originalImageUrl,
-                          filename: image.filename,
-                          attemptedSrc: e.currentTarget.src
-                        });
-                      }
-                      e.currentTarget.style.display = 'none';
-                    }}
-                    onLoad={() => {
-                      if (process.env.NODE_ENV === 'development') {
-                        console.log('ProductionPipeline: Reference image loaded successfully:', originalImageUrl);
-                      }
-                    }}
-                  />
+                  {originalImageUrl ? (
+                    <>
+                      <img
+                        src={originalImageUrl}
+                        alt="Reference"
+                        className="w-full h-full object-cover pointer-events-none"
+                        onError={(e) => {
+                          if (process.env.NODE_ENV === 'development') {
+                            console.error('ProductionPipeline: Failed to load reference image:', {
+                              originalUrl: image.url,
+                              normalizedUrl: originalImageUrl,
+                              filename: image.filename,
+                              attemptedSrc: e.currentTarget.src
+                            });
+                          }
+                          e.currentTarget.style.display = 'none';
+                          const placeholder = e.currentTarget.parentElement?.querySelector('.reference-placeholder');
+                          if (placeholder) {
+                            (placeholder as HTMLElement).style.display = 'flex';
+                          }
+                        }}
+                        onLoad={() => {
+                          if (process.env.NODE_ENV === 'development') {
+                            console.log('ProductionPipeline: Reference image loaded successfully:', originalImageUrl);
+                          }
+                        }}
+                      />
+                      <div className="reference-placeholder hidden absolute inset-0 items-center justify-center bg-gray-200">
+                        <div className="text-center p-1">
+                          <p className="text-[8px] text-gray-500">Yüklenemedi</p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                      <div className="text-center p-1">
+                        <p className="text-[8px] text-gray-500">Görsel yok</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -1141,28 +1164,53 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
                           });
                           }}
                         >
-                          <div className="w-full h-full overflow-hidden rounded-xl">
-                            <img
-                              src={normalizeImageUrl(pipeline.source.url, pipeline.source.filename)}
-                              alt={pipeline.source.name}
-                              className="w-full h-full object-cover pointer-events-none"
-                              onError={(e) => {
-                                if (process.env.NODE_ENV === 'development') {
-                                  console.error('ProductionPipeline: Failed to load source image:', {
-                                    originalUrl: pipeline.source.url,
-                                    normalizedUrl: normalizeImageUrl(pipeline.source.url, pipeline.source.filename),
-                                    filename: pipeline.source.filename,
-                                    attemptedSrc: e.currentTarget.src
-                                  });
-                                }
-                                e.currentTarget.style.display = 'none';
-                              }}
-                              onLoad={() => {
-                                if (process.env.NODE_ENV === 'development') {
-                                  console.log('ProductionPipeline: Source image loaded successfully:', normalizeImageUrl(pipeline.source.url, pipeline.source.filename));
-                                }
-                              }}
-                            />
+                          <div className="w-full h-full overflow-hidden rounded-xl relative">
+                            {(() => {
+                              const sourceImageUrl = normalizeImageUrl(pipeline.source.url, pipeline.source.filename) || getImageUrl(pipeline.source.filename || '');
+                              if (!sourceImageUrl) {
+                                return (
+                                  <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                                    <div className="text-center p-2">
+                                      <p className="text-xs text-gray-500">Görsel yok</p>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <>
+                                  <img
+                                    src={sourceImageUrl}
+                                    alt={pipeline.source.name}
+                                    className="w-full h-full object-cover pointer-events-none"
+                                    onError={(e) => {
+                                      if (process.env.NODE_ENV === 'development') {
+                                        console.error('ProductionPipeline: Failed to load source image:', {
+                                          originalUrl: pipeline.source.url,
+                                          normalizedUrl: sourceImageUrl,
+                                          filename: pipeline.source.filename,
+                                          attemptedSrc: e.currentTarget.src
+                                        });
+                                      }
+                                      e.currentTarget.style.display = 'none';
+                                      const placeholder = e.currentTarget.parentElement?.querySelector('.source-placeholder');
+                                      if (placeholder) {
+                                        (placeholder as HTMLElement).style.display = 'flex';
+                                      }
+                                    }}
+                                    onLoad={() => {
+                                      if (process.env.NODE_ENV === 'development') {
+                                        console.log('ProductionPipeline: Source image loaded successfully:', sourceImageUrl);
+                                      }
+                                    }}
+                                  />
+                                  <div className="source-placeholder hidden absolute inset-0 items-center justify-center bg-gray-200">
+                                    <div className="text-center p-2">
+                                      <p className="text-xs text-gray-500">Yüklenemedi</p>
+                                    </div>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                         {pipeline.level === 0 && (
