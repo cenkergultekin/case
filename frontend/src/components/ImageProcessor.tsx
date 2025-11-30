@@ -33,6 +33,7 @@ interface ImageData {
   width?: number;
   height?: number;
   processedVersions?: ProcessedVersion[];
+  url?: string; // URL from storage (Firebase Storage or local)
 }
 
 interface ImageProcessorProps {
@@ -116,7 +117,7 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [modalScrollPosition, setModalScrollPosition] = useState<number>(0);
   const confirmScrollAnchorRef = useRef<HTMLDivElement | null>(null);
-  const originalImageUrl = React.useMemo(() => getImageUrl(image.filename), [image.filename]);
+  const originalImageUrl = React.useMemo(() => normalizeImageUrl(image.url, image.filename), [image.url, image.filename]);
   const selectedSourceVersionData = React.useMemo(() => {
     if (!selectedSourceVersion) return null;
     return image.processedVersions?.find(v => v.id === selectedSourceVersion) || null;
@@ -499,57 +500,101 @@ export function ImageProcessor({ image, onProcessComplete, onDelete, initialSele
                 const sourceVersion = image.processedVersions?.find(v => v.id === selectedSourceVersion);
                 if (sourceVersion) {
                   const imageUrl = normalizeImageUrl(sourceVersion.url, sourceVersion.filename);
+                  if (!imageUrl) {
+                    return (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                        <div className="text-center p-4">
+                          <p className="text-sm text-gray-500">Görsel yüklenemedi</p>
+                          <p className="text-xs text-gray-400 mt-1">{sourceVersion.filename}</p>
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
-                    <img
-                      src={imageUrl}
-                      alt={sourceVersion.operation}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        if (process.env.NODE_ENV === 'development') {
-                          console.error('ImageProcessor: Failed to load source version:', {
-                            originalUrl: sourceVersion.url,
-                            normalizedUrl: imageUrl,
-                            filename: sourceVersion.filename,
-                            attemptedSrc: e.currentTarget.src
-                          });
-                        }
-                        // Don't hide, show placeholder instead
-                        e.currentTarget.style.opacity = '0.3';
-                      }}
-                      onLoad={() => {
-                        if (process.env.NODE_ENV === 'development') {
-                          console.log('ImageProcessor: Source version loaded successfully:', imageUrl);
-                        }
-                      }}
-                    />
+                    <>
+                      <img
+                        src={imageUrl}
+                        alt={sourceVersion.operation}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          if (process.env.NODE_ENV === 'development') {
+                            console.error('ImageProcessor: Failed to load source version:', {
+                              originalUrl: sourceVersion.url,
+                              normalizedUrl: imageUrl,
+                              filename: sourceVersion.filename,
+                              attemptedSrc: e.currentTarget.src
+                            });
+                          }
+                          // Show error placeholder
+                          e.currentTarget.style.display = 'none';
+                          const placeholder = e.currentTarget.parentElement?.querySelector('.image-placeholder');
+                          if (placeholder) {
+                            (placeholder as HTMLElement).style.display = 'flex';
+                          }
+                        }}
+                        onLoad={() => {
+                          if (process.env.NODE_ENV === 'development') {
+                            console.log('ImageProcessor: Source version loaded successfully:', imageUrl);
+                          }
+                        }}
+                      />
+                      <div className="image-placeholder hidden absolute inset-0 items-center justify-center bg-gray-100">
+                        <div className="text-center p-4">
+                          <p className="text-sm text-gray-500">Görsel yüklenemedi</p>
+                          <p className="text-xs text-gray-400 mt-1">{sourceVersion.filename}</p>
+                        </div>
+                      </div>
+                    </>
                   );
                 }
               }
               const imageUrl = normalizeImageUrl(image.url, image.filename);
+              if (!imageUrl) {
+                return (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                    <div className="text-center p-4">
+                      <p className="text-sm text-gray-500">Görsel yüklenemedi</p>
+                      <p className="text-xs text-gray-400 mt-1">{image.filename}</p>
+                    </div>
+                  </div>
+                );
+              }
               return (
-                <img
-                  src={imageUrl}
-                  alt={image.originalName}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    if (process.env.NODE_ENV === 'development') {
-                      console.error('ImageProcessor: Failed to load image:', {
-                        originalUrl: image.url,
-                        normalizedUrl: imageUrl,
-                        filename: image.filename,
-                        attemptedSrc: e.currentTarget.src
-                      });
-                    }
-                    // Don't hide, show placeholder instead
-                    e.currentTarget.style.opacity = '0.3';
-                  }}
-                  onLoad={() => {
-                    // Image loaded successfully
-                    if (process.env.NODE_ENV === 'development') {
-                      console.log('ImageProcessor: Image loaded successfully:', imageUrl);
-                    }
-                  }}
-                />
+                <>
+                  <img
+                    src={imageUrl}
+                    alt={image.originalName}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      if (process.env.NODE_ENV === 'development') {
+                        console.error('ImageProcessor: Failed to load image:', {
+                          originalUrl: image.url,
+                          normalizedUrl: imageUrl,
+                          filename: image.filename,
+                          attemptedSrc: e.currentTarget.src
+                        });
+                      }
+                      // Show error placeholder
+                      e.currentTarget.style.display = 'none';
+                      const placeholder = e.currentTarget.parentElement?.querySelector('.image-placeholder');
+                      if (placeholder) {
+                        (placeholder as HTMLElement).style.display = 'flex';
+                      }
+                    }}
+                    onLoad={() => {
+                      // Image loaded successfully
+                      if (process.env.NODE_ENV === 'development') {
+                        console.log('ImageProcessor: Image loaded successfully:', imageUrl);
+                      }
+                    }}
+                  />
+                  <div className="image-placeholder hidden absolute inset-0 items-center justify-center bg-gray-100">
+                    <div className="text-center p-4">
+                      <p className="text-sm text-gray-500">Görsel yüklenemedi</p>
+                      <p className="text-xs text-gray-400 mt-1">{image.filename}</p>
+                    </div>
+                  </div>
+                </>
               );
             })()}
           </div>

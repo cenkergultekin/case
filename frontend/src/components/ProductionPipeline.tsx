@@ -28,6 +28,7 @@ interface ImageData {
   mimetype: string;
   uploadedAt: string;
   processedVersions?: ProcessedVersion[];
+  url?: string; // URL from storage (Firebase Storage or local)
 }
 
 interface ProcessingImage {
