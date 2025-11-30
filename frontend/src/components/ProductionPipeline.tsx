@@ -419,19 +419,39 @@ export function ProductionPipeline({ image, onSelectAsSource, onBack, processing
   const downloadImageFile = async (fileUrl: string, fallbackName: string) => {
     const safeFileName = fallbackName?.trim() ? fallbackName : `gorsel-${Date.now()}.png`;
     try {
-      const response = await fetch(fileUrl);
-      if (!response.ok) {
-        throw new Error(`Download failed with status ${response.status}`);
+      // Normalize URL first
+      const normalizedUrl = normalizeImageUrl(fileUrl, fallbackName);
+      
+      // For Firebase Storage URLs and cross-origin URLs, use fetch + blob method
+      // This handles CORS issues better
+      if (normalizedUrl.includes('firebasestorage.googleapis.com') || normalizedUrl.includes('storage.googleapis.com') || normalizedUrl.startsWith('https://')) {
+        const response = await fetch(normalizedUrl, {
+          mode: 'cors',
+          credentials: 'omit'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Download failed with status ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = safeFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      } else {
+        // For same-origin URLs, use direct link method (faster)
+        const link = document.createElement('a');
+        link.href = normalizedUrl;
+        link.download = safeFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = safeFileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error('Failed to download image', error);
       alert('Görsel indirilemedi. Lütfen tekrar deneyin.');

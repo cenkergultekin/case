@@ -48,12 +48,13 @@ export class FirebaseStorageService {
             uploadedAt: new Date().toISOString()
           }
         },
-        public: false // Keep files private, use signed URLs
+        public: process.env.USE_FIREBASE_PUBLIC_URLS === 'true' // Make public if USE_FIREBASE_PUBLIC_URLS is true
       });
 
-      // Make file publicly readable (optional - can use signed URLs instead)
-      // Uncomment if you want public access:
-      // await file.makePublic();
+      // Make file publicly readable if USE_FIREBASE_PUBLIC_URLS is true
+      if (process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
+        await file.makePublic();
+      }
 
       // Get public URL or generate signed URL
       let url: string;

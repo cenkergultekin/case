@@ -66,12 +66,45 @@ export function ProcessedImagesGallery({ onSelectAsSource }: ProcessedImagesGall
     setPage(1);
   };
 
-  const downloadImage = (version: ProcessedVersion) => {
+  const downloadImage = async (version: ProcessedVersion) => {
     const imageUrl = normalizeImageUrl(version.url, version.filename);
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = version.filename;
-    link.click();
+    const safeFileName = version.filename?.trim() ? version.filename : `gorsel-${Date.now()}.png`;
+    
+    try {
+      // For Firebase Storage URLs and cross-origin URLs, use fetch + blob method
+      // This handles CORS issues better
+      if (imageUrl.includes('firebasestorage.googleapis.com') || imageUrl.includes('storage.googleapis.com') || imageUrl.startsWith('https://')) {
+        const response = await fetch(imageUrl, {
+          mode: 'cors',
+          credentials: 'omit'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Download failed with status ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = safeFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      } else {
+        // For same-origin URLs, use direct link method (faster)
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.download = safeFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error('Failed to download image', error);
+      alert('Görsel indirilemedi. Lütfen tekrar deneyin.');
+    }
   };
 
   const formatProcessingTime = (ms: number) => {

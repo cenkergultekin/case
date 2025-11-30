@@ -1,14 +1,49 @@
 import admin from 'firebase-admin';
 import { getFirestore } from './firebaseAdmin';
+import { getStorage } from './firebaseAdmin';
 import { ImageMetadata, ImagePipelineRecord, ProcessedVersion, UploadOptions } from '../types/image';
 
 export class FirebasePipelineRepository {
   private db: admin.firestore.Firestore;
   private collection: admin.firestore.CollectionReference;
+  private storageBucket: admin.storage.Bucket | null;
 
   constructor() {
     this.db = getFirestore();
     this.collection = this.db.collection('pipelines');
+    
+    // Initialize Firebase Storage bucket if Firebase Storage is enabled
+    const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+    if (useFirebaseStorage) {
+      const storage = getStorage();
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (bucketName) {
+        this.storageBucket = storage.bucket(bucketName);
+      } else {
+        this.storageBucket = null;
+      }
+    } else {
+      this.storageBucket = null;
+    }
+  }
+
+  // Helper method to generate signed URL for Firebase Storage file
+  private async getSignedUrl(filename: string): Promise<string | null> {
+    if (!this.storageBucket) {
+      return null;
+    }
+    
+    try {
+      const file = this.storageBucket.file(`uploads/${filename}`);
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 365 * 24 * 60 * 60 * 1000 // 1 year
+      });
+      return signedUrl;
+    } catch (error) {
+      console.error(`Failed to generate signed URL for ${filename}:`, error);
+      return null;
+    }
   }
 
   async saveOriginalImage(userId: string, metadata: ImageMetadata, options: UploadOptions = {}): Promise<void> {
@@ -89,10 +124,15 @@ export class FirebasePipelineRepository {
         if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
           imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${data.filename}`)}?alt=media`;
         } else {
-          // For signed URLs, we need to generate them on-demand
-          // Fallback to base URL for now (should be handled by storage service)
-          const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-          imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+          // For signed URLs, generate them on-demand
+          const signedUrl = await this.getSignedUrl(data.filename);
+          if (signedUrl) {
+            imageUrl = signedUrl;
+          } else {
+            // Fallback to public URL format if signed URL generation fails
+            const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+            imageUrl = `${baseUrl}/api/uploads/${data.filename}`;
+          }
         }
       } else {
         // Local filesystem
@@ -128,10 +168,15 @@ export class FirebasePipelineRepository {
           if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
             versionUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${versionData.filename}`)}?alt=media`;
           } else {
-            // For signed URLs, we need to generate them on-demand
-            // Fallback to base URL for now (should be handled by storage service)
-            const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-            versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+            // For signed URLs, generate them on-demand
+            const signedUrl = await this.getSignedUrl(versionData.filename);
+            if (signedUrl) {
+              versionUrl = signedUrl;
+            } else {
+              // Fallback to public URL format if signed URL generation fails
+              const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+              versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+            }
           }
         } else {
           // Local filesystem
@@ -185,44 +230,51 @@ export class FirebasePipelineRepository {
         snapshot.docs.map(async (docSnapshot: admin.firestore.QueryDocumentSnapshot) => {
           const data = docSnapshot.data();
           const versionsSnapshot = await docSnapshot.ref.collection('versions').orderBy('createdAt', 'asc').get();
-          const versions: ProcessedVersion[] = versionsSnapshot.docs.map((versionDoc: admin.firestore.QueryDocumentSnapshot) => {
-            const versionData = versionDoc.data();
-            // Get URL from Firestore or construct it if missing (for backward compatibility)
-            let versionUrl = versionData.url;
-            if (!versionUrl && versionData.filename) {
-              // Construct URL based on storage type
-              const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
-              if (useFirebaseStorage) {
-                // Use Firebase Storage URL format
-                const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-                if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
-                  versionUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${versionData.filename}`)}?alt=media`;
+          const versions: ProcessedVersion[] = await Promise.all(
+            versionsSnapshot.docs.map(async (versionDoc: admin.firestore.QueryDocumentSnapshot) => {
+              const versionData = versionDoc.data();
+              // Get URL from Firestore or construct it if missing (for backward compatibility)
+              let versionUrl = versionData.url;
+              if (!versionUrl && versionData.filename) {
+                // Construct URL based on storage type
+                const useFirebaseStorage = process.env.USE_FIREBASE_STORAGE === 'true';
+                if (useFirebaseStorage) {
+                  // Use Firebase Storage URL format
+                  const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+                  if (bucketName && process.env.USE_FIREBASE_PUBLIC_URLS === 'true') {
+                    versionUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(`uploads/${versionData.filename}`)}?alt=media`;
+                  } else {
+                    // For signed URLs, generate them on-demand
+                    const signedUrl = await this.getSignedUrl(versionData.filename);
+                    if (signedUrl) {
+                      versionUrl = signedUrl;
+                    } else {
+                      // Fallback to public URL format if signed URL generation fails
+                      const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
+                      versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
+                    }
+                  }
                 } else {
-                  // For signed URLs, we need to generate them on-demand
-                  // Fallback to base URL for now (should be handled by storage service)
+                  // Local filesystem
                   const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
                   versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
                 }
-              } else {
-                // Local filesystem
-                const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-                versionUrl = `${baseUrl}/api/uploads/${versionData.filename}`;
               }
-            }
-            return {
-              id: versionDoc.id,
-              operation: versionData.operation,
-              aiModel: versionData.aiModel,
-              parameters: versionData.parameters,
-              filename: versionData.filename,
-              url: versionUrl || '',
-              size: versionData.size || 0,
-              createdAt: this.toDate(versionData.createdAt),
-              processingTimeMs: versionData.processingTimeMs,
-              sourceImageId: versionData.sourceImageId,
-              sourceProcessedVersionId: versionData.sourceProcessedVersionId
-            };
-          });
+              return {
+                id: versionDoc.id,
+                operation: versionData.operation,
+                aiModel: versionData.aiModel,
+                parameters: versionData.parameters,
+                filename: versionData.filename,
+                url: versionUrl || '',
+                size: versionData.size || 0,
+                createdAt: this.toDate(versionData.createdAt),
+                processingTimeMs: versionData.processingTimeMs,
+                sourceImageId: versionData.sourceImageId,
+                sourceProcessedVersionId: versionData.sourceProcessedVersionId
+              };
+            })
+          );
 
           // Get URL from Firestore or construct it if missing (for backward compatibility)
           let imageUrl = data.url;
