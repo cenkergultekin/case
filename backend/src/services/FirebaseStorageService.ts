@@ -10,7 +10,7 @@ export interface StoredFile {
 }
 
 export class FirebaseStorageService {
-  private bucket: admin.storage.Bucket;
+  private bucket: ReturnType<admin.storage.Storage['bucket']>;
   private baseUrl: string;
 
   constructor() {
@@ -130,8 +130,15 @@ export class FirebaseStorageService {
       const file = this.bucket.file(`uploads/${filename}`);
       const [metadata] = await file.getMetadata();
       
+      const sizeValue = metadata.size;
+      const size = typeof sizeValue === 'string' 
+        ? parseInt(sizeValue, 10) 
+        : typeof sizeValue === 'number' 
+          ? sizeValue 
+          : 0;
+      
       return {
-        size: parseInt(metadata.size || '0', 10),
+        size,
         createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(),
         modifiedAt: metadata.updated ? new Date(metadata.updated) : new Date()
       };
