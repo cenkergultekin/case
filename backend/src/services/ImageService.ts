@@ -58,7 +58,8 @@ export class ImageService {
         width: dimensions.width,
         height: dimensions.height,
         uploadedAt: new Date(),
-        processedVersions: []
+        processedVersions: [],
+        url: storedFile.url // Include URL from storage service (Firebase Storage or local)
       };
 
       await this.pipelineRepository.saveOriginalImage(userId, metadata, options);

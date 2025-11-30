@@ -22,6 +22,7 @@ export interface ImageMetadata {
   height?: number;
   uploadedAt: Date;
   processedVersions?: ProcessedVersion[];
+  url?: string; // URL from storage service (Firebase Storage or local)
 }
 
 export interface UploadOptions {

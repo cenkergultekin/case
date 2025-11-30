@@ -28,7 +28,8 @@ export class FirebasePipelineRepository {
       tags: options.tags || [],
       description: options.description || '',
       isPublic: options.isPublic ?? false,
-      processedVersionCount: 0
+      processedVersionCount: 0,
+      ...(metadata.url && { url: metadata.url }) // Include URL if available
     });
   }
 
@@ -86,7 +87,8 @@ export class FirebasePipelineRepository {
       width: data.width,
       height: data.height,
       uploadedAt: this.toDate(data.uploadedAt),
-      processedVersions: []
+      processedVersions: [],
+      ...(data.url && { url: data.url }) // Include URL if available
     };
 
     const versionsSnapshot = await docRef.collection('versions').orderBy('createdAt', 'asc').get();
@@ -160,6 +162,7 @@ export class FirebasePipelineRepository {
             userId: data.userId,
             originalName: data.originalName,
             filename: data.filename,
+            ...(data.url && { url: data.url }), // Include URL if available
             mimetype: data.mimetype,
             size: data.size,
             width: data.width,

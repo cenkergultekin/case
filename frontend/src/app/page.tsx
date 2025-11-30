@@ -24,6 +24,7 @@ interface ImageData {
   width?: number;
   height?: number;
   processedVersions?: any[];
+  url?: string; // URL from storage (Firebase Storage or local)
 }
 
 type ViewMode = 'upload' | 'processing' | 'pipeline';
@@ -353,7 +354,7 @@ export default function Home() {
                   <div className="p-4 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
                     <div className="space-y-3">
                       {images.map((img) => {
-                        const imageUrl = getImageUrl(img.filename);
+                        const imageUrl = normalizeImageUrl(img.url, img.filename);
                         return (
                           <div
                             key={img.id}
@@ -438,7 +439,7 @@ export default function Home() {
                 <div className="p-4 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
                   <div className="space-y-3">
                     {images.map((img) => {
-                      const imageUrl = getImageUrl(img.filename);
+                      const imageUrl = normalizeImageUrl(img.url, img.filename);
                       const isSelected = selectedImage?.id === img.id;
                       
                       return (
@@ -553,7 +554,7 @@ export default function Home() {
                 <div className="p-4 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
                   <div className="space-y-3">
                     {images.map((img) => {
-                      const imageUrl = getImageUrl(img.filename);
+                      const imageUrl = normalizeImageUrl(img.url, img.filename);
                       const isSelected = selectedImage?.id === img.id;
                       
                       return (

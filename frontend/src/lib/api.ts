@@ -21,7 +21,12 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
     return '';
   }
   
-  // PRIORITY: If URL contains localhost (check this FIRST before other validations)
+  // PRIORITY 1: Firebase Storage URLs - use as is (public or signed URLs)
+  if (url.includes('firebasestorage.googleapis.com') || url.includes('storage.googleapis.com')) {
+    return url;
+  }
+  
+  // PRIORITY 2: If URL contains localhost (check this before other validations)
   if (url.includes('localhost') || url.includes('127.0.0.1') || url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
     const baseUrl = API_BASE_URL.replace('/api', '');
     // Extract filename from URL or use provided filename
@@ -30,12 +35,17 @@ export const normalizeImageUrl = (url: string | undefined, filename?: string): s
     return normalized;
   }
   
-  // If URL already contains /api/uploads/ and is a valid HTTPS URL, use it as is
+  // PRIORITY 3: If URL already contains /api/uploads/ and is a valid HTTPS URL, use it as is
   if (url.includes('/api/uploads/') && url.startsWith('https://')) {
     return url;
   }
   
-  // If URL is just a filename (no protocol), construct full URL
+  // PRIORITY 4: If URL is a valid HTTPS URL (but not Firebase Storage), use it as is
+  if (url.startsWith('https://') || url.startsWith('http://')) {
+    return url;
+  }
+  
+  // PRIORITY 5: If URL is just a filename (no protocol), construct full URL
   if (!url.includes('://') && filename) {
     return getImageUrl(filename);
   }

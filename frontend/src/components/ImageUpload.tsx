@@ -5,7 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
-import { imageAPI, getImageUrl } from '@/lib/api';
+import { imageAPI, getImageUrl, normalizeImageUrl } from '@/lib/api';
 import { formatFileSize } from '@/lib/utils';
 
 interface UploadedImage {
@@ -147,7 +147,7 @@ export function ImageUpload({
               
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {uploadedImages.map((image) => {
-                  const imageUrl = image.url || getImageUrl(image.filename);
+                  const imageUrl = normalizeImageUrl(image.url, image.filename);
                   return (
                     <div key={image.id} className="group relative aspect-square rounded-xl overflow-hidden hover-lift bg-white border border-gray-200">
                       <img
